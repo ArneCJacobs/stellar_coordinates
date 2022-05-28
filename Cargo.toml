@@ -1,0 +1,14 @@
+[package]
+name = "stellar_coordinates_test"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+#bevy = "0.7.0"
+bevy = { version = "0.7.0", features = ["dynamic"] } # faster compilation, turn of for final release
+bevy-inspector-egui = "0.10.0"
+csv = "1.1"
+serde = { version = "1", features =["derive"] }
+crossbeam-channel = "0.5.0"
