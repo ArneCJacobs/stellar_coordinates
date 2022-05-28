@@ -32,7 +32,7 @@ fn main() {
     App::new()
         .add_event::<StreamEvent>()
         .add_plugins(DefaultPlugins)
-        .add_plugin(WorldInspectorPlugin::new())
+        //.add_plugin(WorldInspectorPlugin::new())
         .add_startup_system(setup)
         .add_system(read_stream)
         .add_system(spawn_star)
@@ -52,8 +52,8 @@ fn main() {
     //}
 //}
 #[derive(Deref)]
-struct StreamReceiver(Receiver<Pos>);
-struct StreamEvent(Pos);
+struct StreamReceiver(Receiver<Vec<Pos>>);
+struct StreamEvent(Vec<Pos>);
 
 #[derive(Deserialize, Debug)]
 struct Pos {
@@ -76,14 +76,20 @@ fn setup(
     });
 
 
-    let mut reader = csv::Reader::from_path("./data/stars_big_transformed.csv").unwrap();
+    let mut reader = csv::ReaderBuilder::new()
+        .has_headers(true)
+        .from_path("./data/stars_big_transformed.csv")
+        .unwrap();
 
-    let (tx, rx) = bounded::<Pos>(10);
+    let (tx, rx) = bounded::<Vec<Pos>>(10);
     std::thread::spawn(move || {
+        let mut star_positions = vec![];
         for record in reader.deserialize() {
             let star_pos: Pos = record.unwrap();
-            tx.send(star_pos).unwrap();
+            star_positions.push(star_pos);
         }
+
+        tx.send(star_positions).unwrap();
     });
 
     commands.insert_resource(StreamReceiver(rx));
@@ -103,21 +109,28 @@ fn spawn_star(
 ) {
 
     for event in reader.iter() {
-        let star_pos = &event.0;
-        commands.spawn_bundle(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Icosphere {
-                radius: 0.05,
-                subdivisions: 32,
-            })),
-            material: materials.add(StandardMaterial {
-                base_color: Color::hex("ffd891").unwrap(),
-                // vary key PBR parameters on a grid of spheres to show the effect
-                unlit: true,
+        println!("loaded stars");
+        let vector: &Vec<Pos> = &event.0;
+        for (index, star_pos) in vector.iter().enumerate() {
+            print!("\r                                            ");
+            print!("\r {}/{} {:.3}%",index, vector.len(), (index as f32) / (vector.len() as f32) * 100f32);
+            commands.spawn_bundle(PbrBundle {
+                mesh: meshes.add(Mesh::from(shape::Icosphere {
+                    radius: 0.05,
+                    subdivisions: 32,
+                })),
+                material: materials.add(StandardMaterial {
+                    base_color: Color::hex("ffd891").unwrap(),
+                    // vary key PBR parameters on a grid of spheres to show the effect
+                    unlit: true,
+                    ..default()
+                }),
+                transform: Transform::from_xyz(star_pos.x, star_pos.y, star_pos.z),
                 ..default()
-            }),
-            transform: Transform::from_xyz(star_pos.x, star_pos.y, star_pos.z),
-            ..default()
-        });
+            });
+
+        }
+        //let star_pos = &event.0;
     }
 
 }
