@@ -18,19 +18,41 @@ use bevy::{
         RenderApp, RenderStage,
     },
 };
+use smooth_bevy_cameras::{LookTransform, controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin}, LookTransformPlugin, Smoother};
 use bytemuck::{Pod, Zeroable};
 use serde::Deserialize;
 
 use bevy_inspector_egui::WorldInspectorPlugin;
-use crossbeam_channel::{bounded, Receiver};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugin(WorldInspectorPlugin::new())
-        .add_plugin(CustomMaterialPlugin)
+        //.add_plugin(WorldInspectorPlugin::new()) // in game inspector
+        .add_plugin(CustomMaterialPlugin) // for GPU instancing
+        .add_plugin(LookTransformPlugin)
+        .add_plugin(FpsCameraPlugin::default())
+        .add_system(cursor_grab_system)
         .add_startup_system(setup)
         .run();
+}
+
+// hides mouse
+fn cursor_grab_system(
+    mut windows: ResMut<Windows>,
+    btn: Res<Input<MouseButton>>,
+    key: Res<Input<KeyCode>>,
+) {
+    let window = windows.get_primary_mut().unwrap();
+
+    if btn.just_pressed(MouseButton::Left) {
+        window.set_cursor_lock_mode(true);
+        window.set_cursor_visibility(false);
+    }
+
+    if key.just_pressed(KeyCode::Escape) {
+        window.set_cursor_lock_mode(false);
+        window.set_cursor_visibility(true);
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -71,7 +93,7 @@ fn setup(
             stars
             .iter()
             .map(|star_pos| InstanceData {
-                position: Vec3::new(star_pos.x, star_pos.y, star_pos.z),
+                position: Vec3::new(star_pos.x, star_pos.z, star_pos.y),
                 scale: 1.0,
                 color:  Color::hex("ffd891").unwrap().as_rgba_f32(),
             })
@@ -89,37 +111,26 @@ fn setup(
         NoFrustumCulling,
     ));
 
-    //commands.spawn().insert_bundle((
-        //meshes.add(Mesh::from(shape::Icosphere { radius: 0.2, subdivisions: 32 })),
-        //Transform::from_xyz(0.0, 0.0, 0.0),
-        //GlobalTransform::default(),
-        //InstanceMaterialData(
-            //(1..=10)
-                //.flat_map(|x| (1..=10).map(move |y| (x as f32 / 10.0, y as f32 / 10.0)))
-                //.map(|(x, y)| InstanceData {
-                    //position: Vec3::new(x * 10.0 - 5.0, y * 10.0 - 5.0, 0.0),
-                    //scale: 1.0,
-                    //color: Color::hsla(x * 360., y, 0.5, 1.0).as_rgba_f32(),
-                //})
-                //.collect(),
-        //),
-        //Visibility::default(),
-        //ComputedVisibility::default(),
-        //// NOTE: Frustum culling is done based on the Aabb of the Mesh and the GlobalTransform.
-        //// As the cube is at the origin, if its Aabb moves outside the view frustum, all the
-        //// instanced cubes will be culled.
-        //// The InstanceMaterialData contains the 'GlobalTransform' information for this custom
-        //// instancing, and that is not taken into account with the built-in frustum culling.
-        //// We must disable the built-in frustum culling by adding the `NoFrustumCulling` marker
-        //// component to avoid incorrect culling.
-        //NoFrustumCulling,
-    //));
-
     // camera
-    commands.spawn_bundle(PerspectiveCameraBundle {
-        transform: Transform::from_xyz(0.0, 0.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..default()
-    });
+    //commands.spawn_bundle(PerspectiveCameraBundle {
+        //transform: Transform::from_xyz(0.0, 0.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y),
+        //..default()
+    //});
+    let controller = FpsCameraController {
+        smoothing_weight : 0.6,
+        translate_sensitivity: 0.2,
+        mouse_rotate_sensitivity: Vec2::splat(0.001),
+        ..Default::default()
+    };
+    commands
+        .spawn_bundle(PerspectiveCameraBundle::default())
+        .insert_bundle(FpsCameraBundle::new(
+                controller,
+                PerspectiveCameraBundle::default(),
+                Vec3::new(-2.0, 5.0, 5.0),
+                Vec3::new(0., 0., 0.),
+        ));
+
 }
 
 #[derive(Component, Deref)]
@@ -146,6 +157,7 @@ impl Plugin for CustomMaterialPlugin {
             .add_system_to_stage(RenderStage::Prepare, prepare_instance_buffers);
     }
 }
+
 
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
