@@ -3015,6 +3015,7 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy-inspector-egui",
+ "bytemuck",
  "crossbeam-channel",
  "csv",
  "serde",
