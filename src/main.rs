@@ -34,8 +34,8 @@ fn main() {
         .add_plugins(DefaultPlugins)
         //.add_plugin(WorldInspectorPlugin::new())
         .add_startup_system(setup)
-        .add_system(read_stream)
-        .add_system(spawn_star)
+        //.add_system(read_stream)
+        //.add_system(spawn_star)
         //.add_plugin(HelloPlugin)
         .run();
 }
@@ -64,6 +64,8 @@ struct Pos {
 
 fn setup(
     mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // camera
     commands.spawn_bundle(OrthographicCameraBundle {
@@ -81,56 +83,42 @@ fn setup(
         .from_path("./data/stars_big_transformed.csv")
         .unwrap();
 
-    let (tx, rx) = bounded::<Vec<Pos>>(10);
-    std::thread::spawn(move || {
-        let mut star_positions = vec![];
-        for record in reader.deserialize() {
-            let star_pos: Pos = record.unwrap();
-            star_positions.push(star_pos);
-        }
+    let mut index = 0;
+    let star_count = 220996;
+    for record in reader.deserialize() {
+        let star_pos: Pos = record.unwrap();
 
-        tx.send(star_positions).unwrap();
-    });
-
-    commands.insert_resource(StreamReceiver(rx));
-}
-
-fn read_stream(receiver: ResMut<StreamReceiver>, mut events: EventWriter<StreamEvent>) {
-    for from_stream in receiver.try_iter() {
-        events.send(StreamEvent(from_stream));
-    }
-}
-
-fn spawn_star(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut reader: EventReader<StreamEvent>,
-) {
-
-    for event in reader.iter() {
-        println!("loaded stars");
-        let vector: &Vec<Pos> = &event.0;
-        for (index, star_pos) in vector.iter().enumerate() {
-            print!("\r                                            ");
-            print!("\r {}/{} {:.3}%",index, vector.len(), (index as f32) / (vector.len() as f32) * 100f32);
-            commands.spawn_bundle(PbrBundle {
-                mesh: meshes.add(Mesh::from(shape::Icosphere {
-                    radius: 0.05,
-                    subdivisions: 32,
-                })),
-                material: materials.add(StandardMaterial {
-                    base_color: Color::hex("ffd891").unwrap(),
-                    // vary key PBR parameters on a grid of spheres to show the effect
-                    unlit: true,
-                    ..default()
-                }),
-                transform: Transform::from_xyz(star_pos.x, star_pos.y, star_pos.z),
+        print!("\r                                            ");
+        print!("\r {:06}/{} {:.3}%",index, star_count, (index as f32) / (star_count as f32) * 100f32);
+        index += 1;
+        commands.spawn_bundle(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Icosphere {
+                radius: 0.05,
+                subdivisions: 32,
+            })),
+            material: materials.add(StandardMaterial {
+                base_color: Color::hex("ffd891").unwrap(),
+                // vary key PBR parameters on a grid of spheres to show the effect
+                unlit: true,
                 ..default()
-            });
-
-        }
-        //let star_pos = &event.0;
+            }),
+            transform: Transform::from_xyz(star_pos.x, star_pos.y, star_pos.z),
+            ..default()
+        });
     }
 
 }
+
+//fn spawn_star(
+    //mut commands: Commands,
+    //mut meshes: ResMut<Assets<Mesh>>,
+    //mut materials: ResMut<Assets<StandardMaterial>>,
+    //mut reader: EventReader<StreamEvent>,
+//) {
+
+    //for event in reader.iter() {
+        //println!("loaded stars");
+        //let vector: &Vec<Pos> = &event.0;
+        ////let star_pos = &event.0;
+    //}
+//}
