@@ -22,16 +22,18 @@ use smooth_bevy_cameras::{LookTransform, controllers::fps::{FpsCameraBundle, Fps
 use bytemuck::{Pod, Zeroable};
 use serde::Deserialize;
 
-use bevy_inspector_egui::WorldInspectorPlugin;
+use bevy_inspector_egui::{WorldInspectorPlugin, Inspectable, RegisterInspectable};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        //.add_plugin(WorldInspectorPlugin::new()) // in game inspector
+        .add_plugin(WorldInspectorPlugin::new()) // in game inspector
         .add_plugin(CustomMaterialPlugin) // for GPU instancing
         .add_plugin(LookTransformPlugin)
         .add_plugin(FpsCameraPlugin::default())
         .add_system(cursor_grab_system)
+        .register_inspectable::<InstanceData>() // allows InstanceData to be inspected in egui
+        .register_inspectable::<InstanceMaterialData>() // allows InstanceData to be inspected in egui
         .add_startup_system(setup)
         .run();
 }
@@ -86,7 +88,7 @@ fn setup(
     }
 
     commands.spawn().insert_bundle((
-        meshes.add(Mesh::from(shape::Icosphere { radius: 0.02, subdivisions: 2 })),
+        meshes.add(Mesh::from(shape::Icosphere { radius: 0.002, subdivisions: 1 })),
         Transform::from_xyz(0.0, 0.0, 0.0),
         GlobalTransform::default(),
         InstanceMaterialData(
@@ -118,7 +120,7 @@ fn setup(
     //});
     let controller = FpsCameraController {
         smoothing_weight : 0.6,
-        translate_sensitivity: 0.2,
+        translate_sensitivity: 0.1,
         mouse_rotate_sensitivity: Vec2::splat(0.001),
         ..Default::default()
     };
@@ -133,7 +135,7 @@ fn setup(
 
 }
 
-#[derive(Component, Deref)]
+#[derive(Component, Deref, Inspectable)]
 struct InstanceMaterialData(Vec<InstanceData>);
 impl ExtractComponent for InstanceMaterialData {
     type Query = &'static InstanceMaterialData;
@@ -159,7 +161,7 @@ impl Plugin for CustomMaterialPlugin {
 }
 
 
-#[derive(Clone, Copy, Pod, Zeroable)]
+#[derive(Clone, Copy, Pod, Zeroable, Inspectable, Default)]
 #[repr(C)]
 struct InstanceData {
     position: Vec3,
