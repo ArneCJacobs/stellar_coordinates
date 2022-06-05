@@ -1,16 +1,17 @@
 use rayon::prelude::*;
 use smooth_bevy_cameras::{controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin}, LookTransformPlugin};
-use bytemuck::{Pod, Zeroable};
 use serde::Deserialize;
 use std::fs::File;
 use flate2::read::GzDecoder;
 use bevy::prelude::*;
 
-use bevy_inspector_egui::{Inspectable, RegisterInspectable, WorldInspectorPlugin};
+use bevy_inspector_egui::{RegisterInspectable, WorldInspectorPlugin};
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy_prototype_debug_lines::*;
 use bevy::render::primitives::Aabb;
 use GPUInstanceing::{CustomMaterialPlugin, InstanceData, InstanceMaterialData};
+use itertools::Itertools;
+use std::collections::HashMap;
 
 mod cursor;
 mod GPUInstanceing;
@@ -30,8 +31,11 @@ fn main() {
         .add_plugin(DebugLinesPlugin::default())
         .add_startup_system(setup)
         .add_system(draw_bounding_box_system)
+        .insert_resource(ChunkSize(100.0))
         .run();
 }
+
+struct ChunkSize(f32);
 
 fn draw_bounding_box_system(
     mut lines: ResMut<DebugLines>,
@@ -74,6 +78,7 @@ struct Pos {
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
+    chunk_size: Res<ChunkSize>
 ) {
 
     let file = File::open("./data/stars_transformed.csv.gz").expect("Could not open file");
@@ -81,14 +86,14 @@ fn setup(
     let decoder = GzDecoder::new(file);
 
     // load in stars
-    let mut reader = csv::ReaderBuilder::new()
+    let reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .from_reader(decoder);
 
     let mut index = 0;
     let star_count = 3_000_000;
     let scale = 1.0f32;
-    let limit = 500_000;
+    let limit = 2_000_000;
     let mut stars: Vec<InstanceData> = vec![];
     for record in reader.into_deserialize::<Pos>() {
         if let Ok(star_pos) = record {
@@ -110,34 +115,36 @@ fn setup(
         }
     }
 
-    let min = stars.par_iter()
-        .map(|instance_data| instance_data.position)
-        .reduce(|| Vec3::ZERO, |accum, item| accum.min(item));
 
-    let max = stars.par_iter()
-        .map(|instance_data| instance_data.position)
-        .reduce(|| Vec3::ZERO, |accum, item| accum.max(item));
+    let mut chunks: HashMap<IVec3, Vec<InstanceData>> = stars.clone().into_iter().into_group_map_by(|star_pos| {
+        (star_pos.position / chunk_size.0).floor().as_ivec3()
+    });
 
-    commands.spawn().insert_bundle((
-        meshes.add(Mesh::from(shape::Icosphere { radius: 0.1f32, subdivisions: 0 })),
-        Transform::from_xyz(0.0, 0.0, 0.0),
-        GlobalTransform::default(),
-        InstanceMaterialData(
-            stars
-        ),
-        Visibility::default(),
-        ComputedVisibility::default(),
-        // NOTE: Frustum culling is done based on the Aabb of the Mesh and the GlobalTransform.
-        // As the cube is at the origin, if its Aabb moves outside the view frustum, all the
-        // instanced cubes will be culled.
-        // The InstanceMaterialData contains the 'GlobalTransform' information for this custom
-        // instancing, and that is not taken into account with the built-in frustum culling.
-        // We must disable the built-in frustum culling by adding the `NoFrustumCulling` marker
-        // component to avoid incorrect culling.
-        //NoFrustumCulling,
-        Aabb::from_min_max(min, max)
+    //let min = stars.par_iter()
+        //.map(|instance_data| instance_data.position)
+        //.reduce(|| Vec3::ZERO, |accum, item| accum.min(item));
 
-    ));
+    //let max = stars.par_iter()
+        //.map(|instance_data| instance_data.position)
+        //.reduce(|| Vec3::ZERO, |accum, item| accum.max(item));
+    let ico_sphere = meshes.add(Mesh::from(shape::Icosphere { radius: 0.1f32, subdivisions: 0 }));
+
+    for (key, value) in chunks.drain() {
+        let key = key.as_vec3() * chunk_size.0;
+        commands.spawn().insert_bundle((
+                meshes.get_handle(&ico_sphere),
+                Transform::from_xyz(0.0, 0.0, 0.0),
+                GlobalTransform::default(),
+                InstanceMaterialData(
+                    value
+                ),
+                Visibility{ is_visible: true },
+                ComputedVisibility::default(),
+                Aabb::from_min_max(key, key + chunk_size.0)
+        ));
+
+    }
+
 
     // camera
     //commands.spawn_bundle(PerspectiveCameraBundle {

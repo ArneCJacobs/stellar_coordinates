@@ -22,7 +22,7 @@ use bevy::{
         RenderStage, view::{ComputedVisibility, ExtractedView, Msaa, NoFrustumCulling, Visibility},
     },
 };
-use bevy_inspector_egui::{Inspectable, RegisterInspectable, WorldInspectorPlugin};
+use bevy_inspector_egui::Inspectable;
 
 #[derive(Component, Deref, Inspectable)]
 pub struct InstanceMaterialData(pub Vec<InstanceData>);
@@ -51,7 +51,7 @@ impl Plugin for CustomMaterialPlugin {
 }
 
 
-#[derive(Clone, Copy, Pod, Zeroable, Inspectable, Default)]
+#[derive(Clone, Copy, Pod, Zeroable, Inspectable, Default, Debug)]
 #[repr(C)]
 pub struct InstanceData {
     pub position: Vec3,
