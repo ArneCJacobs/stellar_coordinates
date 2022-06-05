@@ -1,2 +1,5 @@
 /target
 data/*.csv
+data/*.csv.gz
+data/*.csv.old
+

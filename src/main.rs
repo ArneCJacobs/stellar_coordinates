@@ -1,28 +1,19 @@
-use bevy::{
-    core_pipeline::Transparent3d,
-    ecs::system::{lifetimeless::*, SystemParamItem},
-    math::prelude::*,
-    pbr::{MeshPipeline, MeshPipelineKey, MeshUniform, SetMeshBindGroup, SetMeshViewBindGroup},
-    prelude::*,
-    render::{
-        mesh::{GpuBufferInfo, MeshVertexBufferLayout},
-        render_asset::RenderAssets,
-        render_component::{ExtractComponent, ExtractComponentPlugin},
-        render_phase::{
-            AddRenderCommand, DrawFunctions, EntityRenderCommand, RenderCommandResult, RenderPhase,
-            SetItemPipeline, TrackedRenderPass,
-        },
-        render_resource::*,
-        renderer::RenderDevice,
-        view::{ComputedVisibility, ExtractedView, Msaa, NoFrustumCulling, Visibility},
-        RenderApp, RenderStage,
-    },
-};
-use smooth_bevy_cameras::{LookTransform, controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin}, LookTransformPlugin, Smoother};
+use rayon::prelude::*;
+use smooth_bevy_cameras::{controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin}, LookTransformPlugin};
 use bytemuck::{Pod, Zeroable};
 use serde::Deserialize;
+use std::fs::File;
+use flate2::read::GzDecoder;
+use bevy::prelude::*;
 
-use bevy_inspector_egui::{WorldInspectorPlugin, Inspectable, RegisterInspectable};
+use bevy_inspector_egui::{Inspectable, RegisterInspectable, WorldInspectorPlugin};
+use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
+use bevy_prototype_debug_lines::*;
+use bevy::render::primitives::Aabb;
+use GPUInstanceing::{CustomMaterialPlugin, InstanceData, InstanceMaterialData};
+
+mod cursor;
+mod GPUInstanceing;
 
 fn main() {
     App::new()
@@ -31,30 +22,46 @@ fn main() {
         .add_plugin(CustomMaterialPlugin) // for GPU instancing
         .add_plugin(LookTransformPlugin)
         .add_plugin(FpsCameraPlugin::default())
-        .add_system(cursor_grab_system)
+        .add_system(cursor::cursor_grab_system)
         .register_inspectable::<InstanceData>() // allows InstanceData to be inspected in egui
         .register_inspectable::<InstanceMaterialData>() // allows InstanceData to be inspected in egui
+        .add_plugin(LogDiagnosticsPlugin::default())
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_plugin(DebugLinesPlugin::default())
         .add_startup_system(setup)
+        .add_system(draw_bounding_box_system)
         .run();
 }
 
-// hides mouse
-fn cursor_grab_system(
-    mut windows: ResMut<Windows>,
-    btn: Res<Input<MouseButton>>,
-    key: Res<Input<KeyCode>>,
+fn draw_bounding_box_system(
+    mut lines: ResMut<DebugLines>,
+    query: Query<&bevy::render::primitives::Aabb>
 ) {
-    let window = windows.get_primary_mut().unwrap();
-
-    if btn.just_pressed(MouseButton::Left) {
-        window.set_cursor_lock_mode(true);
-        window.set_cursor_visibility(false);
+    for aabb in query.iter() {
+        draw_bounding_box(&mut lines, aabb);
     }
 
-    if key.just_pressed(KeyCode::Escape) {
-        window.set_cursor_lock_mode(false);
-        window.set_cursor_visibility(true);
-    }
+}
+
+fn draw_bounding_box(lines: &mut ResMut<DebugLines>, aabb: &Aabb) {
+    let (min_x, min_y, min_z): (f32, f32, f32) = aabb.min().into();
+    let (max_x, max_y, max_z): (f32, f32, f32) = aabb.max().into();
+    lines.line_colored(Vec3::new(min_x, min_y, min_z), Vec3::new(max_x, min_y, min_z), 0.0, Color::GREEN);
+    lines.line_colored(Vec3::new(min_x, min_y, min_z), Vec3::new(min_x, max_y, min_z), 0.0, Color::GREEN);
+    lines.line_colored(Vec3::new(min_x, min_y, min_z), Vec3::new(min_x, min_y, max_z), 0.0, Color::GREEN);
+
+    lines.line_colored(Vec3::new(max_x, min_y, min_z), Vec3::new(max_x, max_y, min_z), 0.0, Color::GREEN);
+    lines.line_colored(Vec3::new(max_x, min_y, min_z), Vec3::new(max_x, min_y, max_z), 0.0, Color::GREEN);
+
+    lines.line_colored(Vec3::new(min_x, max_y, min_z), Vec3::new(max_x, max_y, min_z), 0.0, Color::GREEN);
+    lines.line_colored(Vec3::new(min_x, max_y, min_z), Vec3::new(min_x, max_y, max_z), 0.0, Color::GREEN);
+
+    lines.line_colored(Vec3::new(min_x, min_y, max_z), Vec3::new(max_x, min_y, max_z), 0.0, Color::GREEN);
+    lines.line_colored(Vec3::new(min_x, min_y, max_z), Vec3::new(min_x, max_y, max_z), 0.0, Color::GREEN);
+
+    lines.line_colored(Vec3::new(max_x, max_y, min_z), Vec3::new(max_x, max_y, max_z), 0.0, Color::GREEN);
+    lines.line_colored(Vec3::new(max_x, min_y, max_z), Vec3::new(max_x, max_y, max_z), 0.0, Color::GREEN);
+    lines.line_colored(Vec3::new(min_x, max_y, max_z), Vec3::new(max_x, max_y, max_z), 0.0, Color::GREEN);
 }
 
 #[derive(Deserialize, Debug)]
@@ -69,37 +76,54 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
 
+    let file = File::open("./data/stars_transformed.csv.gz").expect("Could not open file");
+    //let file = File::open("./data/stars_big_transformed.csv.gz").expect("Could not open file");
+    let decoder = GzDecoder::new(file);
 
     // load in stars
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
-        .from_path("./data/stars_big_transformed.csv")
-        .unwrap();
+        .from_reader(decoder);
 
     let mut index = 0;
-    let star_count = 220996;
-    let mut stars = vec![];
-    for record in reader.deserialize() {
-        let star_pos: Pos = record.unwrap();
-        print!("\r                                            ");
-        print!("\r {:06}/{} {:.3}%",index, star_count, (index as f32) / (star_count as f32) * 100f32);
-        stars.push(star_pos);
+    let star_count = 3_000_000;
+    let scale = 1.0f32;
+    let limit = 500_000;
+    let mut stars: Vec<InstanceData> = vec![];
+    for record in reader.into_deserialize::<Pos>() {
+        if let Ok(star_pos) = record {
+            print!("\r                                            ");
+            print!("\r {:06}/{} {:.3}%",index, star_count, (index as f32) / (star_count as f32) * 100f32);
+
+            let star_pos_inst = InstanceData {
+                position: Vec3::new(star_pos.x * scale, star_pos.z * scale, star_pos.y * scale),
+                scale: 1.0,
+                color:  Color::hex("ffd891").unwrap().as_rgba_f32(),
+            };
+            stars.push(star_pos_inst);
+
+        }
+        //let star_pos: Pos = record.unwrap();
         index += 1;
+        if index >= limit { 
+            break;
+        }
     }
 
+    let min = stars.par_iter()
+        .map(|instance_data| instance_data.position)
+        .reduce(|| Vec3::ZERO, |accum, item| accum.min(item));
+
+    let max = stars.par_iter()
+        .map(|instance_data| instance_data.position)
+        .reduce(|| Vec3::ZERO, |accum, item| accum.max(item));
+
     commands.spawn().insert_bundle((
-        meshes.add(Mesh::from(shape::Icosphere { radius: 0.002, subdivisions: 1 })),
+        meshes.add(Mesh::from(shape::Icosphere { radius: 0.1f32, subdivisions: 0 })),
         Transform::from_xyz(0.0, 0.0, 0.0),
         GlobalTransform::default(),
         InstanceMaterialData(
             stars
-            .iter()
-            .map(|star_pos| InstanceData {
-                position: Vec3::new(star_pos.x, star_pos.z, star_pos.y),
-                scale: 1.0,
-                color:  Color::hex("ffd891").unwrap().as_rgba_f32(),
-            })
-            .collect(),
         ),
         Visibility::default(),
         ComputedVisibility::default(),
@@ -110,7 +134,9 @@ fn setup(
         // instancing, and that is not taken into account with the built-in frustum culling.
         // We must disable the built-in frustum culling by adding the `NoFrustumCulling` marker
         // component to avoid incorrect culling.
-        NoFrustumCulling,
+        //NoFrustumCulling,
+        Aabb::from_min_max(min, max)
+
     ));
 
     // camera
@@ -133,210 +159,4 @@ fn setup(
                 Vec3::new(0., 0., 0.),
         ));
 
-}
-
-#[derive(Component, Deref, Inspectable)]
-struct InstanceMaterialData(Vec<InstanceData>);
-impl ExtractComponent for InstanceMaterialData {
-    type Query = &'static InstanceMaterialData;
-    type Filter = ();
-
-    fn extract_component(item: bevy::ecs::query::QueryItem<Self::Query>) -> Self {
-        InstanceMaterialData(item.0.clone())
-    }
-}
-
-pub struct CustomMaterialPlugin;
-
-impl Plugin for CustomMaterialPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugin(ExtractComponentPlugin::<InstanceMaterialData>::default());
-        app.sub_app_mut(RenderApp)
-            .add_render_command::<Transparent3d, DrawCustom>()
-            .init_resource::<CustomPipeline>()
-            .init_resource::<SpecializedMeshPipelines<CustomPipeline>>()
-            .add_system_to_stage(RenderStage::Queue, queue_custom)
-            .add_system_to_stage(RenderStage::Prepare, prepare_instance_buffers);
-    }
-}
-
-
-#[derive(Clone, Copy, Pod, Zeroable, Inspectable, Default)]
-#[repr(C)]
-struct InstanceData {
-    position: Vec3,
-    scale: f32,
-    color: [f32; 4],
-}
-
-#[allow(clippy::too_many_arguments)]
-fn queue_custom(
-    transparent_3d_draw_functions: Res<DrawFunctions<Transparent3d>>,
-    custom_pipeline: Res<CustomPipeline>,
-    msaa: Res<Msaa>,
-    mut pipelines: ResMut<SpecializedMeshPipelines<CustomPipeline>>,
-    mut pipeline_cache: ResMut<PipelineCache>,
-    meshes: Res<RenderAssets<Mesh>>,
-    material_meshes: Query<
-        (Entity, &MeshUniform, &Handle<Mesh>),
-        (With<Handle<Mesh>>, With<InstanceMaterialData>),
-    >,
-    mut views: Query<(&ExtractedView, &mut RenderPhase<Transparent3d>)>,
-) {
-    let draw_custom = transparent_3d_draw_functions
-        .read()
-        .get_id::<DrawCustom>()
-        .unwrap();
-
-    let msaa_key = MeshPipelineKey::from_msaa_samples(msaa.samples);
-
-    for (view, mut transparent_phase) in views.iter_mut() {
-        let view_matrix = view.transform.compute_matrix();
-        let view_row_2 = view_matrix.row(2);
-        for (entity, mesh_uniform, mesh_handle) in material_meshes.iter() {
-            if let Some(mesh) = meshes.get(mesh_handle) {
-                let key =
-                    msaa_key | MeshPipelineKey::from_primitive_topology(mesh.primitive_topology);
-                let pipeline = pipelines
-                    .specialize(&mut pipeline_cache, &custom_pipeline, key, &mesh.layout)
-                    .unwrap();
-                transparent_phase.add(Transparent3d {
-                    entity,
-                    pipeline,
-                    draw_function: draw_custom,
-                    distance: view_row_2.dot(mesh_uniform.transform.col(3)),
-                });
-            }
-        }
-    }
-}
-
-#[derive(Component)]
-pub struct InstanceBuffer {
-    buffer: Buffer,
-    length: usize,
-}
-
-fn prepare_instance_buffers(
-    mut commands: Commands,
-    query: Query<(Entity, &InstanceMaterialData)>,
-    render_device: Res<RenderDevice>,
-) {
-    for (entity, instance_data) in query.iter() {
-        let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            label: Some("instance data buffer"),
-            contents: bytemuck::cast_slice(instance_data.as_slice()),
-            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-        });
-        commands.entity(entity).insert(InstanceBuffer {
-            buffer,
-            length: instance_data.len(),
-        });
-    }
-}
-
-pub struct CustomPipeline {
-    shader: Handle<Shader>,
-    mesh_pipeline: MeshPipeline,
-}
-
-impl FromWorld for CustomPipeline {
-    fn from_world(world: &mut World) -> Self {
-        let world = world.cell();
-        let asset_server = world.get_resource::<AssetServer>().unwrap();
-        asset_server.watch_for_changes().unwrap();
-        let shader = asset_server.load("shaders/instancing.wgsl");
-
-        let mesh_pipeline = world.get_resource::<MeshPipeline>().unwrap();
-
-        CustomPipeline {
-            shader,
-            mesh_pipeline: mesh_pipeline.clone(),
-        }
-    }
-}
-
-impl SpecializedMeshPipeline for CustomPipeline {
-    type Key = MeshPipelineKey;
-
-    fn specialize(
-        &self,
-        key: Self::Key,
-        layout: &MeshVertexBufferLayout,
-    ) -> Result<RenderPipelineDescriptor, SpecializedMeshPipelineError> {
-        let mut descriptor = self.mesh_pipeline.specialize(key, layout)?;
-        descriptor.vertex.shader = self.shader.clone();
-        descriptor.vertex.buffers.push(VertexBufferLayout {
-            array_stride: std::mem::size_of::<InstanceData>() as u64,
-            step_mode: VertexStepMode::Instance,
-            attributes: vec![
-                VertexAttribute {
-                    format: VertexFormat::Float32x4,
-                    offset: 0,
-                    shader_location: 3, // shader locations 0-2 are taken up by Position, Normal and UV attributes
-                },
-                VertexAttribute {
-                    format: VertexFormat::Float32x4,
-                    offset: VertexFormat::Float32x4.size(),
-                    shader_location: 4,
-                },
-            ],
-        });
-        descriptor.fragment.as_mut().unwrap().shader = self.shader.clone();
-        descriptor.layout = Some(vec![
-            self.mesh_pipeline.view_layout.clone(),
-            self.mesh_pipeline.mesh_layout.clone(),
-        ]);
-
-        Ok(descriptor)
-    }
-}
-
-type DrawCustom = (
-    SetItemPipeline,
-    SetMeshViewBindGroup<0>,
-    SetMeshBindGroup<1>,
-    DrawMeshInstanced,
-);
-
-pub struct DrawMeshInstanced;
-impl EntityRenderCommand for DrawMeshInstanced {
-    type Param = (
-        SRes<RenderAssets<Mesh>>,
-        SQuery<Read<Handle<Mesh>>>,
-        SQuery<Read<InstanceBuffer>>,
-    );
-    #[inline]
-    fn render<'w>(
-        _view: Entity,
-        item: Entity,
-        (meshes, mesh_query, instance_buffer_query): SystemParamItem<'w, '_, Self::Param>,
-        pass: &mut TrackedRenderPass<'w>,
-    ) -> RenderCommandResult {
-        let mesh_handle = mesh_query.get(item).unwrap();
-        let instance_buffer = instance_buffer_query.get_inner(item).unwrap();
-
-        let gpu_mesh = match meshes.into_inner().get(mesh_handle) {
-            Some(gpu_mesh) => gpu_mesh,
-            None => return RenderCommandResult::Failure,
-        };
-
-        pass.set_vertex_buffer(0, gpu_mesh.vertex_buffer.slice(..));
-        pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
-
-        match &gpu_mesh.buffer_info {
-            GpuBufferInfo::Indexed {
-                buffer,
-                index_format,
-                count,
-            } => {
-                pass.set_index_buffer(buffer.slice(..), 0, *index_format);
-                pass.draw_indexed(0..*count, 0, 0..instance_buffer.length as u32);
-            }
-            GpuBufferInfo::NonIndexed { vertex_count } => {
-                pass.draw(0..*vertex_count, 0..instance_buffer.length as u32);
-            }
-        }
-        RenderCommandResult::Success
-    }
 }

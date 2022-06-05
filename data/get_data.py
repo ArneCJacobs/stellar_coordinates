@@ -6,28 +6,56 @@ from math import pi
 import numpy as np
 import plotly.express as px
 import os
+from pyrallaxes import rstar
 
 DESTINATION_FILE = './stars_big.csv'
-DESTINATION_FILE_COMPRESSED = f"stars_big_transformed.csv"
+DESTINATION_FILE_COMPRESSED = f"stars_big_transformed.csv.gz"
 
 def download_data():
     # see columns in https://gea.esac.esa.int/archive/documentation/GDR2/Gaia_archive/chap_datamodel/sec_dm_main_tables/ssec_dm_gaia_source.html
     # query adapted from https://arxiv.org/abs/1905.13189v2 (https://doi.org/10.21105/astro.1905.13189)
-    job = Gaia.launch_job("""
-    select top 1000000
-    l,b, radius_val
-    FROM gaiadr2.gaia_source
-    WHERE radius_val > 0
-    ORDER BY RANDOM_INDEX
-    """, dump_to_file=True, output_format='csv')
+    # select top 1000000
+    # FROM gaiadr2.gaia_source
 
-    file = job.outputFile
-    os.rename(file, DESTINATION_FILE)
+    amount = 2_000_000
+    # query = f"""
+    # SELECT top {amount}
+    # B.r_med_photogeo as d, G.l, G.b, B.*
+    # FROM gaiaedr3.gaia_source AS G
+    # JOIN external.gaiaedr3_distance AS B USING (source_id)
+    # WHERE B.r_med_photogeo > 0
+    # ORDER BY d
+    # """
+
+    query = f"""
+    SELECT top {amount}
+    edr3.l, edr3.b, r_med_geo , r_med_geo as d
+    FROM gaiaedr3.gaia_source AS edr3
+    JOIN external.gaiaedr3_distance using(source_id)
+    WHERE r_med_geo >= 0
+    """
+
+    results = Gaia.launch_job(query).get_results().to_pandas()
+
+    # job = Gaia.launch_job("""
+    # SELECT top 2000000
+    # l,b, parallax, parallax_error
+    # FROM gaiaedr3.gaia_source
+    # WHERE
+        # parallax IS NOT NULL AND
+        # parallax_error IS NOT NULL AND
+        # parallax_error < 20
+    # ORDER BY RANDOM_INDEX
+    # """, dump_to_file=True, output_format='csv')
+
+    # file = job.outputFile
+    # os.rename(file, DESTINATION_FILE)
+    return results
 
 
 def to_cartesian_coordinates(data):
 
-    r = data['radius_val']
+    r = data['d']
     rho = data['l'] * 2 * pi / 360
     theta = (data['b'] + 90 ) * 2 * pi / 360
 
@@ -37,15 +65,32 @@ def to_cartesian_coordinates(data):
     data['z'] = r * np.cos(theta)
     return data
 
+def estimate_distance(data):
+    beta = 1.01
+    # parallax = data['parallax']
+    # parallax_error = data['parallax_error']
+    # data['d'] = rstar(beta, parallax, parallax_error)
+    data['d'] = data.apply(lambda row: rstar(beta, row['parallax'], row['parallax_error']), axis=1)
+    data['d'] = np.abs(data['d'])
+    return data
+
 
 def download_and_transform():
-    download_data()
+    print("downloading data")
+    data = download_data()
 
-    file = DESTINATION_FILE
-    data = ps.read_csv(file)
+    # file = DESTINATION_FILE
+    # print("reading data")
+    # data = ps.read_csv(file)
+    print(len(data))
+    # print("estimating distance")
+    # data = estimate_distance(data)
+    print("converting to Cartesian coordinates")
     data = to_cartesian_coordinates(data)
+    # data.to_json(DESTINATION_FILE_COMPRESSED, orient='records')
+    print("writing to compressed file")
     data.to_csv(DESTINATION_FILE_COMPRESSED)
-    os.remove(DESTINATION_FILE)
+    # os.remove(DESTINATION_FILE)
 
     return data
 
@@ -54,27 +99,68 @@ def plot_lat_lon(resultset):
     # print(list(resultset['l']))
     x = (resultset['l']+ 180) % 360
     y = resultset['b']
+    plt.figure()
     plt.clf()
     sns.histplot(
         x=x,
         y=y,
-        palette=plt.cm.jet,
+        cmap=plt.cm.jet,
         bins=(200, 200)
     )
 
-    plt.show()
+    plt.show(block=False)
 
 def plot_3d_scatter(data):
     fig = px.scatter_3d(data, x='x', y='y', z='z')
     fig.show()
 
-if __name__ == '__main__':
+def plot_distance_hist(data):
+    # dist = np.sqrt( data['x'] ** 2 + data['y'] ** 2 + data['z'] ** 2)
+    # # fig = px.histogram(x=dist)
+    # # fig.update_xaxes(range=[0, np.max(dist)])
+    # # fig.show()
+    bounds = [
+        np.percentile(data, 2),
+        100,
+    ]
+    plt.figure()
+    sns.histplot(x=data['d'], bins=1000, binrange=bounds)
+    plt.show(block=False)
+    # print([0, np.percentile(data['d'], 95)])
+    # fig = px.histogram(data, x='d', nbins=100)
+    # fig.update_xaxes(range=[0, 10])
+    # fig.show()
 
-    if not os.path.exists(DESTINATION_FILE_COMPRESSED):
-        data = download_and_transform()
-    else:
-        data = ps.read_csv(DESTINATION_FILE_COMPRESSED)
+    # plt.figure()
+    # sns.histplot(x=data['d'])
+    # plt.show(block=False)
+
+def plot_parallax_error(data):
+    plt.figure()
+    plt.clf()
+    sns.histplot(
+        data=data,
+        x='parallax',
+        y='parallax_error',
+        cmap=plt.cm.jet
+    )
+    plt.show(block=False)
+
+
+if __name__ == '__main__':
+    data = ps.read_csv("./stars.csv.gz")
+
+    # if not os.path.exists(DESTINATION_FILE_COMPRESSED):
+        # data = download_and_transform()
+    # else:
+        # data = ps.read_csv(DESTINATION_FILE_COMPRESSED)
 
     # plot_3d_scatter(data)
     plot_lat_lon(data)
+    plot_distance_hist(data)
+    # plot_parallax_error(data)
+    plt.show()
+
+
+
 
