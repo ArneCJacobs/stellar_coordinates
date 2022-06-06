@@ -22,15 +22,15 @@ mod GPUInstanceing;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugin(WorldInspectorPlugin::new()) // in game inspector
+        //.add_plugin(WorldInspectorPlugin::new()) // in game inspector
         .add_plugin(CustomMaterialPlugin) // for GPU instancing
         .add_plugin(LookTransformPlugin)
         .add_plugin(FpsCameraPlugin::default())
         .add_system(cursor::cursor_grab_system)
-        .register_inspectable::<InstanceData>() // allows InstanceData to be inspected in egui
+        //.register_inspectable::<InstanceData>() // allows InstanceData to be inspected in egui
         //.register_inspectable::<InstanceMaterialData>() // allows InstanceData to be inspected in egui
-        //.add_plugin(LogDiagnosticsPlugin::default())
-        //.add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_plugin(LogDiagnosticsPlugin::default())
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(DebugLinesPlugin::default())
         .add_startup_system(setup)
         .add_system(draw_bounding_box_system)
@@ -88,8 +88,8 @@ fn draw_bounding_box(lines: &mut ResMut<DebugLines>, aabb: &Aabb) {
     }
 }
 
-const CHUNK_SIZE: f32 = 100.0;
-const LIMIT: u32 = 500_000;
+const CHUNK_SIZE: f32 = 50.0;
+const LIMIT: u32 = 3_000_000;
 const SCALE: f32 = 1.0;
 const STAR_COUNT: u32 = 3_000_000;
 
@@ -181,8 +181,8 @@ fn setup(
         .insert_bundle(FpsCameraBundle::new(
                 controller,
                 PerspectiveCameraBundle::default(),
-                Vec3::new(-2.0, 5.0, 5.0),
-                Vec3::new(0., 0., 0.),
+                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::new(1., 0., 0.),
         ));
 
 }
