@@ -3133,6 +3133,7 @@ dependencies = [
  "csv",
  "flate2",
  "itertools",
+ "lazy_static",
  "rayon",
  "serde",
  "smooth-bevy-cameras",
