@@ -23,10 +23,23 @@ use bevy::{
     },
 };
 use bevy_inspector_egui::Inspectable;
-use bevy::ecs::{component::{Components, ComponentId}, archetype::Archetypes};
 
 #[derive(Component, Deref)]
 pub struct InstanceMaterialData(pub &'static Vec<InstanceData>);
+
+impl ExtractComponent for InstanceMaterialDataBuffer {
+    type Query =  &'static InstanceMaterialDataBuffer;
+    type Filter = ();
+
+    fn extract_component(item: bevy::ecs::query::QueryItem<Self::Query>) -> Self {
+        InstanceMaterialDataBuffer(item.0.clone())
+    }
+
+}
+
+#[derive(Component, Deref, Clone)]
+pub struct InstanceMaterialDataBuffer(pub Buffer);
+
 
 impl ExtractComponent for InstanceMaterialData {
     type Query = &'static InstanceMaterialData;
@@ -42,6 +55,7 @@ pub struct CustomMaterialPlugin;
 impl Plugin for CustomMaterialPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(ExtractComponentPlugin::<InstanceMaterialData>::default());
+        app.add_plugin(ExtractComponentPlugin::<InstanceMaterialDataBuffer>::default());
         app.sub_app_mut(RenderApp)
             .add_render_command::<Transparent3d, DrawCustom>()
             .init_resource::<CustomPipeline>()
@@ -50,6 +64,7 @@ impl Plugin for CustomMaterialPlugin {
             .add_system_to_stage(RenderStage::Prepare, prepare_instance_buffers);
     }
 }
+
 
 
 #[derive(Clone, Copy, Pod, Zeroable, Inspectable, Default, Debug)]
@@ -110,26 +125,18 @@ pub struct InstanceBuffer {
 
 fn prepare_instance_buffers(
     mut commands: Commands,
-    query: Query<(Entity, &InstanceMaterialData)>,
+    query: Query<(Entity, &InstanceMaterialData, &InstanceMaterialDataBuffer)>,
     render_device: Res<RenderDevice>,
 ) {
 
-    for (entity, instance_data) in query.iter() {
-
-        //let data;
-        //let temp = InstanceMaterialData(vec![]);
-        //if vis.is_visible {
-            //data = instance_data;
-        //} else {
-            //data = &temp;
-        //}
-        let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            label: Some("instance data buffer"),
-            contents: bytemuck::cast_slice(instance_data.as_slice()),
-            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-        });
+    for (entity, instance_data, buffer) in query.iter() {
+        //let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+            //label: Some("instance data buffer"),
+            //contents: bytemuck::cast_slice(instance_data.as_slice()),
+            //usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+        //});
         commands.entity(entity).insert(InstanceBuffer {
-            buffer,
+            buffer: buffer.0.clone(),
             length: instance_data.len(),
         });
     }

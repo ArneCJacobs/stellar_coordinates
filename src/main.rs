@@ -4,15 +4,17 @@ use serde::Deserialize;
 use std::fs::File;
 use flate2::read::GzDecoder;
 use bevy::prelude::*;
-
+use bevy::render::render_resource::Buffer;
 use bevy_inspector_egui::{RegisterInspectable, WorldInspectorPlugin};
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy_prototype_debug_lines::*;
 use bevy::render::primitives::Aabb;
-use GPUInstanceing::{CustomMaterialPlugin, InstanceData, InstanceMaterialData};
+use bevy::render::renderer::RenderDevice;
+use bevy::render::render_resource::*;
+use GPUInstanceing::{CustomMaterialPlugin, InstanceData, InstanceMaterialData, InstanceMaterialDataBuffer};
 use itertools::Itertools;
 use std::collections::HashMap;
-use bevy::math::{BVec3A, Vec3A};
+
 #[macro_use]
 extern crate lazy_static;
 
@@ -133,30 +135,29 @@ struct Pos {
     z: f32,
 }
 
+
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
+    render_device: Res<RenderDevice>,
 ) {
-
-
-    //let min = stars.par_iter()
-        //.map(|instance_data| instance_data.position)
-        //.reduce(|| Vec3::ZERO, |accum, item| accum.min(item));
-
-    //let max = stars.par_iter()
-        //.map(|instance_data| instance_data.position)
-        //.reduce(|| Vec3::ZERO, |accum, item| accum.max(item));
+    
     let ico_sphere = meshes.add(Mesh::from(shape::Icosphere { radius: 0.1f32, subdivisions: 0 }));
 
     for (key, value) in CHUNKS.iter() {
         let key = key.as_vec3() * CHUNK_SIZE;
+        let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+            label: Some("instance data buffer"),
+            contents: bytemuck::cast_slice(value.as_slice()),
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+        });
+
         commands.spawn().insert_bundle((
                 meshes.get_handle(&ico_sphere),
                 Transform::from_xyz(0.0, 0.0, 0.0),
                 GlobalTransform::default(),
-                InstanceMaterialData(
-                    &value
-                ),
+                InstanceMaterialData(&value),
+                InstanceMaterialDataBuffer(buffer),
                 Visibility{ is_visible: true },
                 ComputedVisibility::default(),
                 Aabb::from_min_max(key, key + CHUNK_SIZE)
@@ -164,12 +165,6 @@ fn setup(
 
     }
 
-
-    // camera
-    //commands.spawn_bundle(PerspectiveCameraBundle {
-        //transform: Transform::from_xyz(0.0, 0.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y),
-        //..default()
-    //});
     let controller = FpsCameraController {
         smoothing_weight : 0.6,
         translate_sensitivity: 0.1,
