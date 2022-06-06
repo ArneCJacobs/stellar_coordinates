@@ -12,6 +12,7 @@ use bevy::render::primitives::Aabb;
 use GPUInstanceing::{CustomMaterialPlugin, InstanceData, InstanceMaterialData};
 use itertools::Itertools;
 use std::collections::HashMap;
+use bevy::math::{BVec3A, Vec3A};
 
 mod cursor;
 mod GPUInstanceing;
@@ -31,7 +32,7 @@ fn main() {
         .add_plugin(DebugLinesPlugin::default())
         .add_startup_system(setup)
         .add_system(draw_bounding_box_system)
-        .insert_resource(ChunkSize(50.0))
+        .insert_resource(ChunkSize(200.0))
         .run();
 }
 
@@ -47,25 +48,45 @@ fn draw_bounding_box_system(
 
 }
 
+fn to_bvec3(bitmask: u8) -> BVec3 {
+    BVec3::new(
+        (bitmask & 0b100) != 0,
+        (bitmask & 0b010) != 0,
+        (bitmask & 0b001) != 0,
+    )
+}
+
 fn draw_bounding_box(lines: &mut ResMut<DebugLines>, aabb: &Aabb) {
-    let (min_x, min_y, min_z): (f32, f32, f32) = aabb.min().into();
-    let (max_x, max_y, max_z): (f32, f32, f32) = aabb.max().into();
-    lines.line_colored(Vec3::new(min_x, min_y, min_z), Vec3::new(max_x, min_y, min_z), 0.0, Color::GREEN);
-    lines.line_colored(Vec3::new(min_x, min_y, min_z), Vec3::new(min_x, max_y, min_z), 0.0, Color::GREEN);
-    lines.line_colored(Vec3::new(min_x, min_y, min_z), Vec3::new(min_x, min_y, max_z), 0.0, Color::GREEN);
+    let min = aabb.min().into();
+    let max = aabb.max().into();
 
-    lines.line_colored(Vec3::new(max_x, min_y, min_z), Vec3::new(max_x, max_y, min_z), 0.0, Color::GREEN);
-    lines.line_colored(Vec3::new(max_x, min_y, min_z), Vec3::new(max_x, min_y, max_z), 0.0, Color::GREEN);
+    let connections = [
+        (0b000, 0b100),
+        (0b000, 0b010),
+        (0b000, 0b001),
 
-    lines.line_colored(Vec3::new(min_x, max_y, min_z), Vec3::new(max_x, max_y, min_z), 0.0, Color::GREEN);
-    lines.line_colored(Vec3::new(min_x, max_y, min_z), Vec3::new(min_x, max_y, max_z), 0.0, Color::GREEN);
+        (0b100, 0b110),
+        (0b100, 0b101),
 
-    lines.line_colored(Vec3::new(min_x, min_y, max_z), Vec3::new(max_x, min_y, max_z), 0.0, Color::GREEN);
-    lines.line_colored(Vec3::new(min_x, min_y, max_z), Vec3::new(min_x, max_y, max_z), 0.0, Color::GREEN);
+        (0b010, 0b110),
+        (0b010, 0b011),
 
-    lines.line_colored(Vec3::new(max_x, max_y, min_z), Vec3::new(max_x, max_y, max_z), 0.0, Color::GREEN);
-    lines.line_colored(Vec3::new(max_x, min_y, max_z), Vec3::new(max_x, max_y, max_z), 0.0, Color::GREEN);
-    lines.line_colored(Vec3::new(min_x, max_y, max_z), Vec3::new(max_x, max_y, max_z), 0.0, Color::GREEN);
+        (0b001, 0b101),
+        (0b001, 0b011),
+
+        (0b011, 0b111),
+        (0b101, 0b111),
+        (0b110, 0b111),
+    ];
+
+    for (from, to) in connections {
+        lines.line_colored(
+            Vec3::select(to_bvec3(from), min, max),
+            Vec3::select(to_bvec3(to), min, max),
+            0.0,
+            Color::GREEN
+        );
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -92,8 +113,9 @@ fn setup(
 
     let mut index = 0;
     let star_count = 3_000_000;
-    let scale = 1.5f32;
-    let limit = 3_000_000;
+    let scale = 1.0f32;
+    //let limit = 3_000_000;
+    let limit = 500_000;
     let mut stars: Vec<InstanceData> = vec![];
     for record in reader.into_deserialize::<Pos>() {
         if let Ok(star_pos) = record {
@@ -138,7 +160,7 @@ fn setup(
                 InstanceMaterialData(
                     value
                 ),
-                Visibility{ is_visible: true },
+                Visibility{ is_visible: false },
                 ComputedVisibility::default(),
                 Aabb::from_min_max(key, key + chunk_size.0)
         ));
