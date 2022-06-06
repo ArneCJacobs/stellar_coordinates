@@ -26,12 +26,12 @@ fn main() {
         .add_system(cursor::cursor_grab_system)
         .register_inspectable::<InstanceData>() // allows InstanceData to be inspected in egui
         .register_inspectable::<InstanceMaterialData>() // allows InstanceData to be inspected in egui
-        .add_plugin(LogDiagnosticsPlugin::default())
-        .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        //.add_plugin(LogDiagnosticsPlugin::default())
+        //.add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(DebugLinesPlugin::default())
         .add_startup_system(setup)
         .add_system(draw_bounding_box_system)
-        .insert_resource(ChunkSize(100.0))
+        .insert_resource(ChunkSize(50.0))
         .run();
 }
 
@@ -92,8 +92,8 @@ fn setup(
 
     let mut index = 0;
     let star_count = 3_000_000;
-    let scale = 1.0f32;
-    let limit = 2_000_000;
+    let scale = 1.5f32;
+    let limit = 3_000_000;
     let mut stars: Vec<InstanceData> = vec![];
     for record in reader.into_deserialize::<Pos>() {
         if let Ok(star_pos) = record {

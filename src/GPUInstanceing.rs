@@ -19,7 +19,7 @@ use bevy::{
         render_resource::*,
         RenderApp,
         renderer::RenderDevice,
-        RenderStage, view::{ComputedVisibility, ExtractedView, Msaa, NoFrustumCulling, Visibility},
+        RenderStage, view::{ExtractedView, Msaa},
     },
 };
 use bevy_inspector_egui::Inspectable;
@@ -33,6 +33,7 @@ impl ExtractComponent for InstanceMaterialData {
 
     fn extract_component(item: bevy::ecs::query::QueryItem<Self::Query>) -> Self {
         InstanceMaterialData(item.0.clone())
+        //*item
     }
 }
 
@@ -109,10 +110,13 @@ pub struct InstanceBuffer {
 
 fn prepare_instance_buffers(
     mut commands: Commands,
-    query: Query<(Entity, &InstanceMaterialData)>,
+    query: Query<(Entity, &InstanceMaterialData, &ComputedVisibility)>,
     render_device: Res<RenderDevice>,
 ) {
-    for (entity, instance_data) in query.iter() {
+    for (entity, instance_data, vis) in query.iter() {
+        if !vis.is_visible {
+            continue;
+        }
         let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
             label: Some("instance data buffer"),
             contents: bytemuck::cast_slice(instance_data.as_slice()),
@@ -195,7 +199,7 @@ impl EntityRenderCommand for DrawMeshInstanced {
     type Param = (
         SRes<RenderAssets<Mesh>>,
         SQuery<Read<Handle<Mesh>>>,
-        SQuery<Read<InstanceBuffer>>,
+        SQuery<Option<Read<InstanceBuffer>>>,
     );
     #[inline]
     fn render<'w>(
@@ -204,30 +208,35 @@ impl EntityRenderCommand for DrawMeshInstanced {
         (meshes, mesh_query, instance_buffer_query): SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
+
         let mesh_handle = mesh_query.get(item).unwrap();
-        let instance_buffer = instance_buffer_query.get_inner(item).unwrap();
+        //let instance_buffer = ;
+        if let Some(instance_buffer) = instance_buffer_query.get_inner(item).unwrap() {
+            let gpu_mesh = match meshes.into_inner().get(mesh_handle) {
+                Some(gpu_mesh) => gpu_mesh,
+                None => return RenderCommandResult::Failure,
+            };
 
-        let gpu_mesh = match meshes.into_inner().get(mesh_handle) {
-            Some(gpu_mesh) => gpu_mesh,
-            None => return RenderCommandResult::Failure,
-        };
+            pass.set_vertex_buffer(0, gpu_mesh.vertex_buffer.slice(..));
+            pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
 
-        pass.set_vertex_buffer(0, gpu_mesh.vertex_buffer.slice(..));
-        pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
-
-        match &gpu_mesh.buffer_info {
-            GpuBufferInfo::Indexed {
-                buffer,
-                index_format,
-                count,
-            } => {
-                pass.set_index_buffer(buffer.slice(..), 0, *index_format);
-                pass.draw_indexed(0..*count, 0, 0..instance_buffer.length as u32);
+            match &gpu_mesh.buffer_info {
+                GpuBufferInfo::Indexed {
+                    buffer,
+                    index_format,
+                    count,
+                } => {
+                    pass.set_index_buffer(buffer.slice(..), 0, *index_format);
+                    pass.draw_indexed(0..*count, 0, 0..instance_buffer.length as u32);
+                }
+                GpuBufferInfo::NonIndexed { vertex_count } => {
+                    pass.draw(0..*vertex_count, 0..instance_buffer.length as u32);
+                }
             }
-            GpuBufferInfo::NonIndexed { vertex_count } => {
-                pass.draw(0..*vertex_count, 0..instance_buffer.length as u32);
-            }
+            RenderCommandResult::Success
+        } else {
+            RenderCommandResult::Success
         }
-        RenderCommandResult::Success
+
     }
 }
