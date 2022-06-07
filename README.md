@@ -1,7 +1,8 @@
 # stellar_coordinates
 
 A 3D visualization of stars from [Gaia EDR 3](https://gea.esac.esa.int/archive/)
-with distances taken from [VizieR Online Data Catalog](https://ui.adsabs.harvard.edu/abs/2021yCat.1352....0B/abstract#:~:text=VizieR%20Online%20Data%20Catalog%3A%20Distances,%2C%202021)%20%2D%20NASA%2FADS)
+with distances taken from [Estimating distances from parallaxes. V. Geometric and photogeometric distances to 1.47 billion stars in Gaia Early Data Release 3](https://www2.mpia-hd.mpg.de/~calj/gedr3_distances/main.html)
+(<https://doi.org/10.3847/1538-3881/abd806>)
 
 Can handle the visualization of at least 3 million stars.
 
