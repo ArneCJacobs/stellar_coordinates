@@ -1,25 +1,37 @@
-use rayon::prelude::*;
-use smooth_bevy_cameras::{controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin}, LookTransformPlugin};
-use serde::Deserialize;
-use std::fs::File;
-use flate2::read::GzDecoder;
-use bevy::prelude::*;
-use bevy::render::render_resource::Buffer;
-use bevy_inspector_egui::{RegisterInspectable, WorldInspectorPlugin};
-use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
-use bevy_prototype_debug_lines::*;
-use bevy::render::primitives::Aabb;
-use bevy::render::renderer::RenderDevice;
-use bevy::render::render_resource::*;
-use GPUInstanceing::{CustomMaterialPlugin, InstanceData, InstanceMaterialData, InstanceMaterialDataBuffer};
-use itertools::Itertools;
-use std::collections::HashMap;
-
 #[macro_use]
 extern crate lazy_static;
 
+use std::collections::HashMap;
+use std::fs::File;
+
+use bevy::{
+    diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
+    prelude::*,
+    render::{
+        primitives::Aabb,
+        render_resource::*,
+        renderer::RenderDevice
+    },
+    window::PresentMode
+};
+
+use bevy_inspector_egui::{RegisterInspectable, WorldInspectorPlugin};
+use bevy_prototype_debug_lines::*;
+use flate2::read::GzDecoder;
+use itertools::Itertools;
+use serde::Deserialize;
+use smooth_bevy_cameras::{controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin}, LookTransformPlugin};
+
+use gpu_instancing::{CustomMaterialPlugin, InstanceData, InstanceMaterialData, InstanceMaterialDataBuffer};
+
 mod cursor;
-mod GPUInstanceing;
+mod gpu_instancing;
+mod util;
+
+const CHUNK_SIZE: f32 = 50.0;
+const LIMIT: u32 = 3_000_000;
+const SCALE: f32 = 1.0;
+const STAR_COUNT: u32 = 3_000_000;
 
 fn main() {
     App::new()
@@ -29,13 +41,17 @@ fn main() {
         .add_plugin(LookTransformPlugin)
         .add_plugin(FpsCameraPlugin::default())
         .add_system(cursor::cursor_grab_system)
-        //.register_inspectable::<InstanceData>() // allows InstanceData to be inspected in egui
-        //.register_inspectable::<InstanceMaterialData>() // allows InstanceData to be inspected in egui
-        .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_plugin(LogDiagnosticsPlugin::filtered(vec![FrameTimeDiagnosticsPlugin::FPS]))
         .add_plugin(DebugLinesPlugin::default())
+        .insert_resource(WindowDescriptor {
+            // uncomment for unthrottled FPS
+            // present_mode: PresentMode::Immediate,
+            ..default()
+        })
+
         .add_startup_system(setup)
-        .add_system(draw_bounding_box_system)
+        //.add_system(draw_bounding_box_system)
         .run();
 }
 
@@ -44,56 +60,11 @@ fn draw_bounding_box_system(
     query: Query<&bevy::render::primitives::Aabb>
 ) {
     for aabb in query.iter() {
-        draw_bounding_box(&mut lines, aabb);
+        util::draw_bounding_box(&mut lines, aabb);
     }
 
 }
 
-fn to_bvec3(bitmask: u8) -> BVec3 {
-    BVec3::new(
-        (bitmask & 0b100) != 0,
-        (bitmask & 0b010) != 0,
-        (bitmask & 0b001) != 0,
-    )
-}
-
-fn draw_bounding_box(lines: &mut ResMut<DebugLines>, aabb: &Aabb) {
-    let min = aabb.min().into();
-    let max = aabb.max().into();
-
-    let connections = [
-        (0b000, 0b100),
-        (0b000, 0b010),
-        (0b000, 0b001),
-
-        (0b100, 0b110),
-        (0b100, 0b101),
-
-        (0b010, 0b110),
-        (0b010, 0b011),
-
-        (0b001, 0b101),
-        (0b001, 0b011),
-
-        (0b011, 0b111),
-        (0b101, 0b111),
-        (0b110, 0b111),
-    ];
-
-    for (from, to) in connections {
-        lines.line_colored(
-            Vec3::select(to_bvec3(from), min, max),
-            Vec3::select(to_bvec3(to), min, max),
-            0.0,
-            Color::GREEN
-        );
-    }
-}
-
-const CHUNK_SIZE: f32 = 50.0;
-const LIMIT: u32 = 3_000_000;
-const SCALE: f32 = 1.0;
-const STAR_COUNT: u32 = 3_000_000;
 
 lazy_static!{
     static ref CHUNKS: HashMap<IVec3, Vec<InstanceData>> = {
@@ -122,6 +93,18 @@ lazy_static!{
                 break;
             }
         }
+        //let max_radius = stars.iter()
+            //.map(|star: &InstanceData| (star.position.x.powf(2.0) + star.position.y.powf(2.0) + star.position.z.powf(2.0)).powf(0.5))
+            //.fold(0.0f32, |num, acc| num.max(acc));
+
+        //let temp_stars = stars.iter().map(|star| {
+            //InstanceData {
+                //position: star.position * max_radius,
+                //scale: 1.0,
+                //color:  Color::hex("91ffd8").unwrap().as_rgba_f32(),
+            //}
+        //}).collect::<Vec<InstanceData>>();
+
         return stars.into_iter().into_group_map_by(|star_pos| {
             (star_pos.position / CHUNK_SIZE).floor().as_ivec3()
         });

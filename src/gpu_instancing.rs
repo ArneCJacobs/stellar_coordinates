@@ -126,15 +126,9 @@ pub struct InstanceBuffer {
 fn prepare_instance_buffers(
     mut commands: Commands,
     query: Query<(Entity, &InstanceMaterialData, &InstanceMaterialDataBuffer)>,
-    render_device: Res<RenderDevice>,
 ) {
 
     for (entity, instance_data, buffer) in query.iter() {
-        //let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            //label: Some("instance data buffer"),
-            //contents: bytemuck::cast_slice(instance_data.as_slice()),
-            //usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-        //});
         commands.entity(entity).insert(InstanceBuffer {
             buffer: buffer.0.clone(),
             length: instance_data.len(),
