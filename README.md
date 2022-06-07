@@ -1,4 +1,4 @@
-# stellar_coordinate_test
+# stellar_coordinates
 
 A 3D visualization of stars from [Gaia EDR 3](https://gea.esac.esa.int/archive/)
 with distances taken from [VizieR Online Data Catalog](https://ui.adsabs.harvard.edu/abs/2021yCat.1352....0B/abstract#:~:text=VizieR%20Online%20Data%20Catalog%3A%20Distances,%2C%202021)%20%2D%20NASA%2FADS)
