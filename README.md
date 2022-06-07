@@ -2,7 +2,7 @@
 
 A 3D visualization of stars from [Gaia EDR 3](https://gea.esac.esa.int/archive/)
 with distances taken from [Estimating distances from parallaxes. V. Geometric and photogeometric distances to 1.47 billion stars in Gaia Early Data Release 3](https://www2.mpia-hd.mpg.de/~calj/gedr3_distances/main.html)
-(<https://doi.org/10.3847/1538-3881/abd806>)
+(<https://doi.org/10.3847/1538-3881/abd806>). Written in Rust using [Bevy](https://bevyengine.org/).
 
 Can handle the visualization of at least 3 million stars.
 
@@ -76,3 +76,13 @@ Press the Space and Shift key to move up and down
 Use the mouse to look around, click in the window to lock in mouse, pres ESCAPE
 to release the mouse.
 
+## Project structure 
+
+| File                    | Description                                             |
+|-------------------------|---------------------------------------------------------|
+| `src/main.rs`           | Main file, contains the setup code and loads in the data| 
+| `src/gpu_instancing.rs` | GPU instancing for static data, based on the [shader_instancing.rs](https://github.com/bevyengine/bevy/blob/v0.7.0/examples/shader/shader_instancing.rs) example from Bevy  |
+| `src/camera.rs`         | Contains setup for camera and controls                  |
+| `src/cursor.rs`         | Code which hides the mouse when the window is clicked   |
+| `src/util.rs`           | Utility functions                                       |
+| `data/get_data.py`      | Downloads a sample data set                             |
