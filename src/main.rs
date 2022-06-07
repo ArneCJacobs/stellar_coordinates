@@ -22,7 +22,8 @@ use itertools::Itertools;
 use serde::Deserialize;
 use smooth_bevy_cameras::{controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin}, LookTransformPlugin};
 
-use gpu_instancing::{CustomMaterialPlugin, InstanceData, InstanceMaterialData, InstanceMaterialDataBuffer};
+use gpu_instancing::{CustomMaterialPlugin, InstanceData};
+use crate::gpu_instancing::InstanceBuffer;
 
 mod cursor;
 mod gpu_instancing;
@@ -139,8 +140,12 @@ fn setup(
                 meshes.get_handle(&ico_sphere),
                 Transform::from_xyz(0.0, 0.0, 0.0),
                 GlobalTransform::default(),
-                InstanceMaterialData(&value),
-                InstanceMaterialDataBuffer(buffer),
+                // InstanceMaterialData(&value),
+                // InstanceMaterialDataBuffer(buffer),
+                InstanceBuffer {
+                    buffer,
+                    length: value.len(),
+                },
                 Visibility{ is_visible: true },
                 ComputedVisibility::default(),
                 Aabb::from_min_max(key, key + CHUNK_SIZE)

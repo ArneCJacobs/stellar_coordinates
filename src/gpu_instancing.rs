@@ -1,6 +1,3 @@
-// use bevy_derive::derive_deref as Deref;
-// use bevy_ecs_macros::derive_component as Component;
-// use bevy_inspector_egui_derive::inspectable as Inspectable;
 use bytemuck::{Pod, Zeroable};
 use bevy::{
     core_pipeline::Transparent3d,
@@ -18,50 +15,41 @@ use bevy::{
         },
         render_resource::*,
         RenderApp,
-        renderer::RenderDevice,
         RenderStage, view::{ExtractedView, Msaa},
     },
 };
 use bevy_inspector_egui::Inspectable;
 
-#[derive(Component, Deref)]
-pub struct InstanceMaterialData(pub &'static Vec<InstanceData>);
 
-impl ExtractComponent for InstanceMaterialDataBuffer {
-    type Query =  &'static InstanceMaterialDataBuffer;
-    type Filter = ();
-
-    fn extract_component(item: bevy::ecs::query::QueryItem<Self::Query>) -> Self {
-        InstanceMaterialDataBuffer(item.0.clone())
-    }
-
+#[derive(Component, Clone)]
+pub struct InstanceBuffer {
+    pub buffer: Buffer,
+    pub length: usize,
 }
 
-#[derive(Component, Deref, Clone)]
-pub struct InstanceMaterialDataBuffer(pub Buffer);
-
-
-impl ExtractComponent for InstanceMaterialData {
-    type Query = &'static InstanceMaterialData;
+impl ExtractComponent for InstanceBuffer {
+    type Query = &'static InstanceBuffer;
     type Filter = ();
 
     fn extract_component(item: bevy::ecs::query::QueryItem<Self::Query>) -> Self {
-        InstanceMaterialData(&item.0)
+        InstanceBuffer{
+            buffer: item.buffer.clone(),
+            length: item.length
+        }
     }
+
 }
 
 pub struct CustomMaterialPlugin;
 
 impl Plugin for CustomMaterialPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(ExtractComponentPlugin::<InstanceMaterialData>::default());
-        app.add_plugin(ExtractComponentPlugin::<InstanceMaterialDataBuffer>::default());
+        app.add_plugin(ExtractComponentPlugin::<InstanceBuffer>::default());
         app.sub_app_mut(RenderApp)
             .add_render_command::<Transparent3d, DrawCustom>()
             .init_resource::<CustomPipeline>()
             .init_resource::<SpecializedMeshPipelines<CustomPipeline>>()
-            .add_system_to_stage(RenderStage::Queue, queue_custom)
-            .add_system_to_stage(RenderStage::Prepare, prepare_instance_buffers);
+            .add_system_to_stage(RenderStage::Queue, queue_custom);
     }
 }
 
@@ -85,7 +73,7 @@ fn queue_custom(
     meshes: Res<RenderAssets<Mesh>>,
     material_meshes: Query<
         (Entity, &MeshUniform, &Handle<Mesh>),
-        (With<Handle<Mesh>>, With<InstanceMaterialData>),
+        (With<Handle<Mesh>>, With<InstanceBuffer>),
     >,
     mut views: Query<(&ExtractedView, &mut RenderPhase<Transparent3d>)>,
 ) {
@@ -117,24 +105,6 @@ fn queue_custom(
     }
 }
 
-#[derive(Component)]
-pub struct InstanceBuffer {
-    buffer: Buffer,
-    length: usize,
-}
-
-fn prepare_instance_buffers(
-    mut commands: Commands,
-    query: Query<(Entity, &InstanceMaterialData, &InstanceMaterialDataBuffer)>,
-) {
-
-    for (entity, instance_data, buffer) in query.iter() {
-        commands.entity(entity).insert(InstanceBuffer {
-            buffer: buffer.0.clone(),
-            length: instance_data.len(),
-        });
-    }
-}
 
 pub struct CustomPipeline {
     shader: Handle<Shader>,
@@ -223,6 +193,7 @@ impl EntityRenderCommand for DrawMeshInstanced {
             Some(gpu_mesh) => gpu_mesh,
             None => return RenderCommandResult::Failure,
         };
+
 
         pass.set_vertex_buffer(0, gpu_mesh.vertex_buffer.slice(..));
         pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
