@@ -157,7 +157,7 @@ if __name__ == '__main__':
 
     # plot_3d_scatter(data)
     plot_lat_lon(data)
-    plot_distance_hist(data)
+    # plot_distance_hist(data)
     # plot_parallax_error(data)
     plt.show()
 
