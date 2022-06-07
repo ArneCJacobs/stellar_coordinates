@@ -6,10 +6,9 @@ from math import pi
 import numpy as np
 import plotly.express as px
 import os
-from pyrallaxes import rstar
 
 DESTINATION_FILE = './stars_big.csv'
-DESTINATION_FILE_COMPRESSED = f"stars_big_transformed.csv.gz"
+DESTINATION_FILE_COMPRESSED = f"stars_transformed.csv.gz"
 
 def download_data():
     # see columns in https://gea.esac.esa.int/archive/documentation/GDR2/Gaia_archive/chap_datamodel/sec_dm_main_tables/ssec_dm_gaia_source.html
@@ -28,11 +27,14 @@ def download_data():
     # """
 
     query = f"""
-    SELECT top {amount}
-    edr3.l, edr3.b, r_med_geo , r_med_geo as d
-    FROM gaiaedr3.gaia_source AS edr3
-    JOIN external.gaiaedr3_distance using(source_id)
-    WHERE r_med_geo >= 0
+    SELECT TOP {amount} l, b, e3d.r_med_geo as d
+    FROM (
+        SELECT  source_id, r_med_geo
+        FROM external.gaiaedr3_distance
+        WHERE r_med_geo > 0
+        ORDER BY r_med_geo
+    ) AS e3d
+    JOIN gaiaedr3.gaia_source using(source_id)
     """
 
     results = Gaia.launch_job(query).get_results().to_pandas()
@@ -65,16 +67,6 @@ def to_cartesian_coordinates(data):
     data['z'] = r * np.cos(theta)
     return data
 
-def estimate_distance(data):
-    beta = 1.01
-    # parallax = data['parallax']
-    # parallax_error = data['parallax_error']
-    # data['d'] = rstar(beta, parallax, parallax_error)
-    data['d'] = data.apply(lambda row: rstar(beta, row['parallax'], row['parallax_error']), axis=1)
-    data['d'] = np.abs(data['d'])
-    return data
-
-
 def download_and_transform():
     print("downloading data")
     data = download_data()
@@ -83,8 +75,6 @@ def download_and_transform():
     # print("reading data")
     # data = ps.read_csv(file)
     print(len(data))
-    # print("estimating distance")
-    # data = estimate_distance(data)
     print("converting to Cartesian coordinates")
     data = to_cartesian_coordinates(data)
     # data.to_json(DESTINATION_FILE_COMPRESSED, orient='records')
@@ -148,12 +138,12 @@ def plot_parallax_error(data):
 
 
 if __name__ == '__main__':
-    data = ps.read_csv("./stars.csv.gz")
+    # data = ps.read_csv("./stars.csv.gz")
 
-    # if not os.path.exists(DESTINATION_FILE_COMPRESSED):
-        # data = download_and_transform()
-    # else:
-        # data = ps.read_csv(DESTINATION_FILE_COMPRESSED)
+    if not os.path.exists(DESTINATION_FILE_COMPRESSED):
+        data = download_and_transform()
+    else:
+        data = ps.read_csv(DESTINATION_FILE_COMPRESSED)
 
     # plot_3d_scatter(data)
     plot_lat_lon(data)

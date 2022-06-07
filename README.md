@@ -12,11 +12,14 @@ or from a Gaia EDR3 TAP endpoint ([example](https://gaia.ari.uni-heidelberg.de/t
 with the following query:
 
 ```adql
-SELECT top AMOUNT
-edr3.l, edr3.b, r_med_geo , r_med_geo as d
-FROM gaiaedr3.gaia_source AS edr3
-JOIN external.gaiaedr3_distance using(source_id)
-WHERE r_med_geo >= 0
+SELECT TOP AMOUNT l, b, e3d.r_med_geo as d
+FROM (
+    SELECT  source_id, r_med_geo
+    FROM external.gaiaedr3_distance
+    WHERE r_med_geo > 0
+    ORDER BY r_med_geo
+) AS e3d
+JOIN gaiaedr3.gaia_source using(source_id)
 ```
 
 with `AMOUNT` replaced with the maximum amount of stars you want. Though the
