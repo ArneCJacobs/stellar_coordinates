@@ -1,5 +1,8 @@
 use std::collections::HashMap;
 use std::fs::File;
+use std::path::Path;
+use std::path::PathBuf;
+
 
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
@@ -19,7 +22,10 @@ use itertools::Itertools;
 use serde::Deserialize;
 use smooth_bevy_cameras::{controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin}, LookTransformPlugin};
 
-use gpu_instancing::{CustomMaterialPlugin, InstanceData, InstanceBuffer};
+use crate::gpu_instancing::{CustomMaterialPlugin, InstanceData, InstanceBuffer};
+use crate::chunk::ChunkLoader;
+use crate::chunk::util::METADATA_FILE;
+
 
 mod cursor;
 mod gpu_instancing;
@@ -159,30 +165,43 @@ fn setup(
     
     let ico_sphere = meshes.add(Mesh::from(shape::Icosphere { radius: 0.1f32, subdivisions: 0 }));
 
-    let chunks = load_chunks();
-    for (chunk_pos, value) in chunks.iter() {
-        let chunk_corner_pos = chunk_pos.as_vec3() * CHUNK_SIZE;
-        let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            label: Some("instance data buffer"),
-            contents: bytemuck::cast_slice(value.as_slice()),
-            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-        });
+    //let chunks = load_chunks();
+    //for (chunk_pos, value) in chunks.iter() {
+        //let chunk_corner_pos = chunk_pos.as_vec3() * CHUNK_SIZE;
+        //let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+            //label: Some("instance data buffer"),
+            //contents: bytemuck::cast_slice(value.as_slice()),
+            //usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+        //});
 
-        commands.spawn().insert_bundle((
-                meshes.get_handle(&ico_sphere),
-                Transform::from_xyz(0.0, 0.0, 0.0),
-                GlobalTransform::default(),
-                InstanceBuffer {
-                    buffer,
-                    length: value.len(),
-                },
-                ChunkPos(chunk_pos.clone()),
-                Visibility{ is_visible: true },
-                ComputedVisibility::default(),
-                Aabb::from_min_max(chunk_corner_pos, chunk_corner_pos + CHUNK_SIZE)
-        ));
+        //commands.spawn().insert_bundle((
+                //meshes.get_handle(&ico_sphere),
+                //Transform::from_xyz(0.0, 0.0, 0.0),
+                //GlobalTransform::default(),
+                //InstanceBuffer {
+                    //buffer,
+                    //length: value.len(),
+                //},
+                //ChunkPos(chunk_pos.clone()),
+                //Visibility{ is_visible: true },
+                //ComputedVisibility::default(),
+                //Aabb::from_min_max(chunk_corner_pos, chunk_corner_pos + CHUNK_SIZE)
+        //));
+    //}
+    //
+    let octree_path = "/home/steam/git/stellar_coordinates_test/data/catalogs/catalog_gaia_dr3_small/catalog/gaia-dr3-small";
+    let metadata_file_path: PathBuf = [octree_path, METADATA_FILE].iter().collect();
+    let chunk_loader = ChunkLoader::new(
+        metadata_file_path,
+        meshes.get_handle(&ico_sphere),
+        Vec3::ZERO
+    );
 
-    }
+    chunk_loader.print(); // TODO remove
+    commands.insert_resource(
+        chunk_loader   
+    );
+
 
     let controller = FpsCameraController {
         smoothing_weight : 0.6,
@@ -193,10 +212,10 @@ fn setup(
     commands
         .spawn_bundle(PerspectiveCameraBundle::default())
         .insert_bundle(FpsCameraBundle::new(
-                controller,
-                PerspectiveCameraBundle::default(),
-                Vec3::new(0.0, 0.0, 0.0),
-                Vec3::new(1., 0., 0.),
+            controller,
+            PerspectiveCameraBundle::default(),
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1., 0., 0.),
         ));
 
 
