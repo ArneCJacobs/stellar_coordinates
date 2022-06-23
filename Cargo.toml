@@ -18,6 +18,7 @@ flate2 = "1.0.24"
 rayon = "1.5.3"
 bevy_prototype_debug_lines = { version = "0.7", features = ["3d"] }
 itertools = "0.10.3"
+byteorder = "1.4.3"
 
 [profile.release]
 debug = true

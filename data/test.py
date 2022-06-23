@@ -3,7 +3,7 @@ from astroquery.gaia import Gaia
 
 def main():
     amount = 10
-    amount = 2_000_000
+    # amount = 2_000_000
     # B.r_med_photogeo as d, B.*
     # query = f"""
     # SELECT top {amount}

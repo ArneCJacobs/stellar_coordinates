@@ -19,12 +19,12 @@ use itertools::Itertools;
 use serde::Deserialize;
 use smooth_bevy_cameras::{controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin}, LookTransformPlugin};
 
-use gpu_instancing::{CustomMaterialPlugin, InstanceData};
-use crate::gpu_instancing::InstanceBuffer;
+use gpu_instancing::{CustomMaterialPlugin, InstanceData, InstanceBuffer};
 
 mod cursor;
 mod gpu_instancing;
 mod util;
+mod chunk;
 
 const CHUNK_SIZE: f32 = 50.0;
 const LIMIT: u32 = 3_000_000;
@@ -94,7 +94,7 @@ fn draw_bounding_box_system(
 
 fn load_chunks() -> HashMap<IVec3, Vec<InstanceData>> {
 
-    let file = File::open("./data/stars_transformed.csv.gz").expect("Could not open file");
+    let file = File::open("./data/stars_big_transformed.csv.gz").expect("Could not open file");
     let decoder = GzDecoder::new(file);
     let reader = csv::ReaderBuilder::new().from_reader(decoder);
 
