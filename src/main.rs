@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
+use bevy_inspector_egui::Inspectable;
 use std::path::PathBuf;
+
+use bevy::math::Vec3A;
 
 
 use bevy::{
@@ -23,8 +26,8 @@ use serde::Deserialize;
 use smooth_bevy_cameras::{controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin}, LookTransformPlugin};
 
 use crate::gpu_instancing::{CustomMaterialPlugin, InstanceData, InstanceBuffer};
-use crate::chunk::ChunkLoader;
 use crate::chunk::util::METADATA_FILE;
+use crate::chunk::Catalog;
 
 
 mod cursor;
@@ -43,7 +46,7 @@ fn main() {
 
     App::new()
         .add_plugins(DefaultPlugins)
-        //.add_plugin(WorldInspectorPlugin::new()) // in game inspector
+        .add_plugin(WorldInspectorPlugin::new()) // in game inspector
         .add_plugin(CustomMaterialPlugin) // for GPU instancing
         .add_plugin(LookTransformPlugin)
         .add_plugin(FpsCameraPlugin::default())
@@ -59,7 +62,6 @@ fn main() {
         .insert_resource(StarsLOD(vec![]))
 
         .add_startup_system(setup)
-        //.add_system(draw_bounding_box_system)
         .run();
 }
 
@@ -70,8 +72,8 @@ fn draw_bounding_box_system(
     for aabb in query.iter() {
         util::draw_bounding_box(&mut lines, aabb);
     }
-
 }
+
 
 //fn LOD_system(
     //mut query: Query<(Entity, &mut Handle<Mesh>, &ChunkPos),With<InstanceBuffer>>,
@@ -162,7 +164,7 @@ fn setup(
     render_device: Res<RenderDevice>,
     mut LOD_map: Res<StarsLOD>,
 ) {
-    
+
     let ico_sphere = meshes.add(Mesh::from(shape::Icosphere { radius: 0.1f32, subdivisions: 0 }));
 
     //let chunks = load_chunks();
@@ -175,32 +177,33 @@ fn setup(
         //});
 
         //commands.spawn().insert_bundle((
-                //meshes.get_handle(&ico_sphere),
-                //Transform::from_xyz(0.0, 0.0, 0.0),
-                //GlobalTransform::default(),
-                //InstanceBuffer {
-                    //buffer,
-                    //length: value.len(),
-                //},
-                //ChunkPos(chunk_pos.clone()),
-                //Visibility{ is_visible: true },
-                //ComputedVisibility::default(),
-                //Aabb::from_min_max(chunk_corner_pos, chunk_corner_pos + CHUNK_SIZE)
+            //meshes.get_handle(&ico_sphere),
+            //Transform::from_xyz(0.0, 0.0, 0.0),
+            //GlobalTransform::default(),
+            //InstanceBuffer {
+                //buffer,
+                //length: value.len(),
+            //},
+            //ChunkPos(chunk_pos.clone()),
+            //Visibility{ is_visible: true },
+            //ComputedVisibility::default(),
+            //Aabb::from_min_max(chunk_corner_pos, chunk_corner_pos + CHUNK_SIZE)
         //));
     //}
     //
+    let catalog = Catalog::new("catalog_gaia_dr3_small".to_string()); 
+    
     let octree_path = "/home/steam/git/stellar_coordinates_test/data/catalogs/catalog_gaia_dr3_small/catalog/gaia-dr3-small";
     let metadata_file_path: PathBuf = [octree_path, METADATA_FILE].iter().collect();
-    let chunk_loader = ChunkLoader::new(
-        metadata_file_path,
-        meshes.get_handle(&ico_sphere),
-        Vec3::ZERO
-    );
+    //let chunk_loader = ChunkLoader::new(
+        //metadata_file_path,
+        //meshes.get_handle(&ico_sphere),
+        //Vec3::ZERO
+    //);
 
-    chunk_loader.print(); // TODO remove
-    commands.insert_resource(
-        chunk_loader   
-    );
+    //commands.insert_resource(
+        //chunk_loader   
+    //);
 
 
     let controller = FpsCameraController {

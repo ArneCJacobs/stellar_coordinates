@@ -8,6 +8,9 @@ use bevy::math::Vec3;
 use bevy::ecs::bundle::Bundle;
 use bevy::render::primitives::Aabb;
 use bevy::prelude::*;
+use serde::Deserialize;
+use serde_json;
+use bit_set::BitSet;
 
 pub mod octant;
 pub mod particle;
@@ -17,14 +20,14 @@ pub mod util;
 use crate::chunk::octant::Octant;
 use crate::chunk::octant::OCTANT_CHILDREN_COUNT;
 use crate::chunk::particle::Particle;
-use crate::chunk::util::METADATA_FILE;
 use crate::gpu_instancing::InstanceBuffer;
+use bevy::render::primitives::Sphere;
 
-struct OctTree {
+pub struct OcTree {
     octants: Vec<Octant>,
 }
 
-impl OctTree {
+impl OcTree {
     pub fn new(mut octants: Vec<Octant>) -> Self {
         // sets the children field to be the index of the child rather then the id
         let mut octant_id_to_index: HashMap<i64, usize> = HashMap::new();
@@ -42,7 +45,7 @@ impl OctTree {
             }
         }
 
-        OctTree {
+        OcTree {
             octants: octants
         }
     }
@@ -62,6 +65,11 @@ impl OctTree {
     //}
 
     //fn load_chunks(&self, pos: Vec3, render_distance: f32, max_stars: u32) -> 
+    //
+    fn search_octants(&self, sphere: Sphere) -> Vec<(usize, &Octant)> { // return iterator instead
+        vec![]
+         // TODO
+    }
 
 }
 
@@ -100,19 +108,45 @@ fn read_particle_file() {
     }
 }
 
-pub struct ChunkLoader {
-    octree: OctTree,
-    mesh: Handle<Mesh>,
-    last_pos: Vec3,
+pub struct BufferedOctantLoader {
+    octree: OcTree,
+    loaded_octants: BitSet,
+    new_octants: BitSet,
 }
 
-impl ChunkLoader {
-    pub fn new<P: AsRef<Path>>(octee_path: P, mesh: Handle<Mesh>, start_pos: Vec3) -> Self {
-        ChunkLoader {
-            mesh,
-            last_pos: start_pos,
-            octree: OctTree::from_file(octee_path),
+impl BufferedOctantLoader {
+    fn new(octree: OcTree) -> Self {
+        BufferedOctantLoader {
+            octree,
+            loaded_octants: BitSet::new(),
+            new_octants: BitSet::new(),
         }
+    }
+
+    // sphere contains the position and the view radius, and will be used for collision with the
+    // aabb in the octree
+    fn load_octants(&mut self, sphere: Sphere) -> (Vec<&Octant>, Vec<&Octant>) {
+        let mut new_octants = vec![];
+        let mut unloaded_octants = vec![];
+        self.new_octants.clear();
+
+        for (index, octant) in self.octree.search_octants(sphere) {
+            self.new_octants.insert(index);
+            if !self.loaded_octants.contains(index) {
+                new_octants.push(octant);
+            } 
+        }
+
+        self.loaded_octants.difference_with(&self.new_octants);
+
+        for index_unloaded in self.loaded_octants.iter() {
+            unloaded_octants.push(&self.octree.octants[index_unloaded]);
+        }
+
+        std::mem::swap(&mut self.new_octants, &mut self.loaded_octants);
+
+        return (new_octants, unloaded_octants);
+        
     }
 
 
@@ -129,6 +163,53 @@ impl ChunkLoader {
 }
 
 pub struct Catalog {
-    //TODO should be given base path, and initiate Octree, ChunkLoader and load files contained in
-    //octant when needed.
+    octree: OcTree,
+    particles_dir_path: PathBuf,
 }
+
+
+const CATALOGS_DIR: &'static str = "./data/catalogs/";
+
+impl Catalog {
+    pub fn new(name: String) -> Self {
+        let catalog_dir: PathBuf = [CATALOGS_DIR, name.as_str()].iter().collect();
+
+        let name = name.replace("_", "-"); // who though this was a good naming convention
+        let mut catalog_description = catalog_dir.join(name);
+        catalog_description.set_extension("json");
+
+        let catalog_description_file = File::open(catalog_description).unwrap();
+        let catalog_data: CatalogData = serde_json::from_reader(catalog_description_file).unwrap();
+
+        let metadata_path = catalog_data.files
+            .iter()
+            .filter(|path| path.file_name().is_some())
+            .filter(|path| path.file_name().unwrap() == "metadata.bin")
+            .next()
+            .expect("No metadata file found");
+
+        let metadata_path = catalog_dir.join(metadata_path);
+
+        let particles_dir_path = catalog_data.files
+            .iter()
+            .filter(|path| path.file_name().is_some())
+            .filter(|path| path.file_name().unwrap() == "particles")
+            .next()
+            .expect("No particles directory found");
+
+        let particles_dir_path = catalog_dir.join(particles_dir_path);
+
+
+        Catalog {
+            octree: OcTree::from_file(metadata_path),
+            particles_dir_path
+        }
+    }    
+
+}
+
+#[derive(Deserialize, Debug)]
+struct CatalogData {
+    files: Vec<PathBuf>
+}
+

@@ -39,8 +39,8 @@ pub const OCTANT_CHILDREN_COUNT: usize = 8;
 #[derive(Debug)]
 pub struct Octant {
     pub octant_id: i64,
-    pub x: f32, pub y: f32, pub z: f32,
-    pub dx: f32, pub dy: f32 ,pub dz: f32,
+    pub min: [f32; 3],
+    pub max: [f32; 3],
     pub children: [i64; OCTANT_CHILDREN_COUNT],
     pub depth: i32,
     pub cumulative_star_count: i32,
@@ -61,9 +61,9 @@ impl Octant {
         let y = reader.read_f32::<BigEndian>()? * (GITP as f32);
         let z = reader.read_f32::<BigEndian>()? * (GITP as f32);
 
-        let dx = reader.read_f32::<BigEndian>()? * (GITP as f32);
-        let dy = reader.read_f32::<BigEndian>()? * (GITP as f32);
-        let dz = reader.read_f32::<BigEndian>()? * (GITP as f32);
+        let dx = (reader.read_f32::<BigEndian>()? / 2.0) * (GITP as f32);
+        let dy = (reader.read_f32::<BigEndian>()? / 2.0)  * (GITP as f32);
+        let dz = (reader.read_f32::<BigEndian>()?) / 2.0 * (GITP as f32);
 
         let mut children = [0; OCTANT_CHILDREN_COUNT];
         for i in 0..OCTANT_CHILDREN_COUNT {
@@ -78,8 +78,8 @@ impl Octant {
 
         return Ok(Octant {
             octant_id,
-            x, y, z,
-            dx, dy, dz,
+            min: [x - dx, y - dy, z - dz],
+            max: [x + dx, y + dy, z + dz],
             children,
             depth,
             cumulative_star_count,
