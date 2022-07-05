@@ -25,14 +25,21 @@ use bevy::render::primitives::Sphere;
 
 pub struct OcTree {
     octants: Vec<Octant>,
+    root_index: usize,
 }
 
 impl OcTree {
     pub fn new(mut octants: Vec<Octant>) -> Self {
         // sets the children field to be the index of the child rather then the id
         let mut octant_id_to_index: HashMap<i64, usize> = HashMap::new();
+        let mut root_index_opt = None;
         for (index, octant) in octants.iter().enumerate() {
-            octant_id_to_index.insert(octant.octant_id, index);
+            octant_id_to_index.insert(octant.octant_id.try_into().unwrap(), index);
+            if octant.depth == 0 {
+                // TODO to be completely accurate, it should be checked if root_index_opt is None
+                // when assigning a new value and panic if not
+                root_index_opt = Some(index);
+            }
         }
 
         for octant in octants.iter_mut() {
@@ -46,7 +53,8 @@ impl OcTree {
         }
 
         OcTree {
-            octants: octants
+            octants,
+            root_index: root_index_opt.expect("No root element was found")
         }
     }
 
@@ -57,24 +65,36 @@ impl OcTree {
         return Self::new(octants);
     }
 
-    //pub fn load_octants(&self, pos: Vec3, view_radius: f32) -> impl Iterator<Item=&Octant> {
-        //for octant in self.octants.iter() {
-            //println!("{:?}", octant);
-        //}
-        //todo!();
-    //}
+    fn get_root(&self) -> &Octant {
+        &self.octants[self.root_index]
+    }
 
-    //fn load_chunks(&self, pos: Vec3, render_distance: f32, max_stars: u32) -> 
-    //
     fn search_octants(&self, sphere: Sphere) -> Vec<(usize, &Octant)> { // return iterator instead
-        vec![]
-         // TODO
+        let mut stack = vec![(self.root_index ,self.get_root())];
+        let mut intersected = vec![];
+        
+        while let Some((index, octant)) = stack.pop() {
+            if sphere.intersects_obb(&octant.aabb, &Mat4::IDENTITY) {
+                intersected.push((index, octant));
+                for &child_index in octant.children.iter() {
+                    if child_index != -1 {
+                        stack.push((child_index as usize, &self.octants[child_index as usize]));
+                    }
+                }
+            }
+        }
+
+        return intersected;
     }
 
 }
 
+#[derive(Component)]
+pub struct OctantId(usize);
+
 #[derive(Bundle)]
 pub struct Chunk {
+    pub octant_id: OctantId,
     pub aabb: Aabb,
     pub instance_data: InstanceBuffer,
     #[bundle]
@@ -85,8 +105,9 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    pub fn new(min: Vec3, max: Vec3, mesh: Handle<Mesh>, instance_data: InstanceBuffer) -> Self {
+    pub fn new(octant_id: usize, min: Vec3, max: Vec3, mesh: Handle<Mesh>, instance_data: InstanceBuffer) -> Self {
         Chunk {
+            octant_id: OctantId(octant_id),
             aabb: Aabb::from_min_max(min, max),
             instance_data,
             transform_bundle: TransformBundle::identity(),
@@ -214,3 +235,24 @@ struct CatalogData {
     files: Vec<PathBuf>
 }
 
+
+struct ParticleLoader {
+    buffered_octant_loader: BufferedOctantLoader,
+
+
+}
+
+impl ParticleLoader {
+    fn manage_chunks(&mut self, mut commands: &mut Commands, chunks: Query<(Entity, &OctantId)>, pos: Vec3, radius: f32) {
+        let sphere = Sphere {
+            center: pos.into(),
+            radius
+        };
+
+        let (new_octants, unloaded_octants) = self.buffered_octant_loader.load_octants(sphere);
+        for octant in unloaded_octants {
+             
+        }
+
+    }
+}

@@ -2,6 +2,7 @@ use byteorder::{ReadBytesExt, BigEndian};
 use std::{
     io::{self, Read},
 };
+use bevy::render::primitives::Aabb;
 
 use crate::chunk::util::GITP;
 
@@ -38,9 +39,8 @@ impl MetadataFile {
 pub const OCTANT_CHILDREN_COUNT: usize = 8;
 #[derive(Debug)]
 pub struct Octant {
-    pub octant_id: i64,
-    pub min: [f32; 3],
-    pub max: [f32; 3],
+    pub octant_id: usize,
+    pub aabb: Aabb,
     pub children: [i64; OCTANT_CHILDREN_COUNT],
     pub depth: i32,
     pub cumulative_star_count: i32,
@@ -77,9 +77,11 @@ impl Octant {
 
 
         return Ok(Octant {
-            octant_id,
-            min: [x - dx, y - dy, z - dz],
-            max: [x + dx, y + dy, z + dz],
+            octant_id: octant_id.try_into().unwrap(),
+            aabb: Aabb::from_min_max(
+                [x - dx, y - dy, z - dz].into(),
+                [x + dx, y + dy, z + dz].into()
+            ),
             children,
             depth,
             cumulative_star_count,

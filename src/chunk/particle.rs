@@ -49,7 +49,7 @@ pub struct Particle {
     pub vx: f32, pub vy: f32, pub vz: f32,
     pub mu_alpha: f32, pub mu_delta: f32, pub rad_vel: f32,
     pub app_mag: f32, pub abs_mag: f32, pub color: [u8; 4], pub size: f32,
-    pub HIP_number: i32,
+    pub hip_number: i32,
     pub source_id: i64,
     pub name_len: i32,
     pub names: Vec<String>,
@@ -82,7 +82,7 @@ impl Particle {
         let color = rgba_from_float(reader.read_f32::<BigEndian>()?);
         let size = reader.read_f32::<BigEndian>()?;
 
-        let HIP_number = reader.read_i32::<BigEndian>()?;
+        let hip_number = reader.read_i32::<BigEndian>()?;
         let source_id = reader.read_i64::<BigEndian>()?;
         let name_len = reader.read_i32::<BigEndian>()?;
 
@@ -102,7 +102,7 @@ impl Particle {
             vx, vy, vz,
             mu_alpha, mu_delta, rad_vel,
             app_mag, abs_mag, color, size,
-            HIP_number,
+            hip_number,
             source_id,
             name_len,
             names   

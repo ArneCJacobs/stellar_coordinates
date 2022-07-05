@@ -1,31 +1,24 @@
 use std::collections::HashMap;
 use std::fs::File;
-use std::path::Path;
-use bevy_inspector_egui::Inspectable;
 use std::path::PathBuf;
-
-use bevy::math::Vec3A;
-
 
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     prelude::*,
     render::{
         primitives::Aabb,
-        render_resource::*,
         renderer::RenderDevice
-    },
-    window::PresentMode
+    }
 };
 
-use bevy_inspector_egui::{RegisterInspectable, WorldInspectorPlugin};
+use bevy_inspector_egui::{WorldInspectorPlugin};
 use bevy_prototype_debug_lines::*;
 use flate2::read::GzDecoder;
 use itertools::Itertools;
 use serde::Deserialize;
 use smooth_bevy_cameras::{controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin}, LookTransformPlugin};
 
-use crate::gpu_instancing::{CustomMaterialPlugin, InstanceData, InstanceBuffer};
+use crate::gpu_instancing::{CustomMaterialPlugin, InstanceData};
 use crate::chunk::util::METADATA_FILE;
 use crate::chunk::Catalog;
 
@@ -165,7 +158,6 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     _render_device: Res<RenderDevice>,
-    mut _LOD_map: Res<StarsLOD>,
 ) {
 
     let ico_sphere = meshes.add(Mesh::from(shape::Icosphere { radius: 0.1f32, subdivisions: 0 }));
