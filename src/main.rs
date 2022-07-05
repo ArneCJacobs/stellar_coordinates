@@ -157,12 +157,15 @@ struct Pos {
 #[derive(Component)]
 struct ChunkPos(IVec3);
 
+trait Thing {
+    fn get_x() -> f32;
+}
 
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    render_device: Res<RenderDevice>,
-    mut LOD_map: Res<StarsLOD>,
+    _render_device: Res<RenderDevice>,
+    mut _LOD_map: Res<StarsLOD>,
 ) {
 
     let ico_sphere = meshes.add(Mesh::from(shape::Icosphere { radius: 0.1f32, subdivisions: 0 }));

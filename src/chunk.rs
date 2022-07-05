@@ -163,8 +163,8 @@ impl BufferedOctantLoader {
 }
 
 pub struct Catalog {
-    octree: OcTree,
     particles_dir_path: PathBuf,
+    buffered_octant_loader: BufferedOctantLoader,
 }
 
 
@@ -199,10 +199,11 @@ impl Catalog {
 
         let particles_dir_path = catalog_dir.join(particles_dir_path);
 
+        let octree = OcTree::from_file(metadata_path); 
 
         Catalog {
-            octree: OcTree::from_file(metadata_path),
-            particles_dir_path
+            particles_dir_path,
+            buffered_octant_loader: BufferedOctantLoader::new(octree),
         }
     }    
 
