@@ -1,16 +1,18 @@
 use std::io::BufReader;
-use std::{
-    fs::File,
-};
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use bevy::math::Vec3;
 use bevy::ecs::bundle::Bundle;
 use bevy::render::primitives::Aabb;
 use bevy::prelude::*;
+use bevy::render::render_resource::{BufferInitDescriptor, BufferUsages};
+use bevy::render::renderer::RenderDevice;
 use serde::Deserialize;
 use serde_json;
 use bit_set::BitSet;
+use vec_map::VecMap;
+use crossbeam_channel::{unbounded, Receiver, Sender};
 
 pub mod octant;
 pub mod particle;
@@ -20,7 +22,7 @@ pub mod util;
 use crate::chunk::octant::Octant;
 use crate::chunk::octant::OCTANT_CHILDREN_COUNT;
 use crate::chunk::particle::Particle;
-use crate::gpu_instancing::InstanceBuffer;
+use crate::gpu_instancing::{InstanceBuffer, InstanceData};
 use bevy::render::primitives::Sphere;
 
 pub struct OcTree {
@@ -96,7 +98,7 @@ pub struct OctantId(usize);
 pub struct Chunk {
     pub octant_id: OctantId,
     pub aabb: Aabb,
-    pub instance_data: InstanceBuffer,
+    pub instance_buffer: InstanceBuffer,
     #[bundle]
     pub transform_bundle: TransformBundle,
     pub mesh: Handle<Mesh>,
@@ -105,11 +107,11 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    pub fn new(octant_id: usize, min: Vec3, max: Vec3, mesh: Handle<Mesh>, instance_data: InstanceBuffer) -> Self {
+    pub fn new(octant_id: usize, aabb: Aabb, mesh: Handle<Mesh>, instance_buffer: InstanceBuffer) -> Self {
         Chunk {
             octant_id: OctantId(octant_id),
-            aabb: Aabb::from_min_max(min, max),
-            instance_data,
+            aabb,
+            instance_buffer,
             transform_bundle: TransformBundle::identity(),
             mesh,
             visibility: Visibility { is_visible: true },
@@ -146,7 +148,7 @@ impl BufferedOctantLoader {
 
     // sphere contains the position and the view radius, and will be used for collision with the
     // aabb in the octree
-    fn load_octants(&mut self, sphere: Sphere) -> (Vec<&Octant>, Vec<&Octant>) {
+    fn load_octants(&mut self, sphere: Sphere) -> (Vec<(usize,&Octant)>, Vec<(usize,&Octant)>) {
         let mut new_octants = vec![];
         let mut unloaded_octants = vec![];
         self.new_octants.clear();
@@ -154,14 +156,14 @@ impl BufferedOctantLoader {
         for (index, octant) in self.octree.search_octants(sphere) {
             self.new_octants.insert(index);
             if !self.loaded_octants.contains(index) {
-                new_octants.push(octant);
+                new_octants.push((index, octant));
             } 
         }
 
         self.loaded_octants.difference_with(&self.new_octants);
 
         for index_unloaded in self.loaded_octants.iter() {
-            unloaded_octants.push(&self.octree.octants[index_unloaded]);
+            unloaded_octants.push((index_unloaded, &self.octree.octants[index_unloaded]));
         }
 
         std::mem::swap(&mut self.new_octants, &mut self.loaded_octants);
@@ -238,20 +240,90 @@ struct CatalogData {
 
 struct ParticleLoader {
     buffered_octant_loader: BufferedOctantLoader,
-
-
+    loaded_octants: VecMap<Entity>,
+    initial_mesh: Handle<Mesh>,
+    loader_thread_sender: Sender<usize>,
 }
 
+#[derive(Deref)]
+struct StreamReceiver(Receiver<Vec<InstanceData>>);
+
 impl ParticleLoader {
-    fn manage_chunks(&mut self, mut commands: &mut Commands, chunks: Query<(Entity, &OctantId)>, pos: Vec3, radius: f32) {
+    fn new(buffered_octant_loader: BufferedOctantLoader, initial_mesh: Handle<Mesh>, commands: &mut Commands, particles_dir_path: PathBuf) -> Self {
+
+        let (sender_to, receiver_to): (Sender<usize>, Receiver<usize>) = unbounded();
+        let (sender_from, receiver_from): (Sender<Vec<InstanceData>>, Receiver<Vec<InstanceData>>) = unbounded();
+
+        std::thread::spawn(move || {
+            while let Ok(octant_id) = receiver_to.recv() {
+                let mut particle_file_path = particles_dir_path.join(format!("particles_{}", octant_id.to_string()));
+                particle_file_path.set_extension("bin");
+                let mut particle_file = File::open(particle_file_path).unwrap();
+                let instance_data: Vec<InstanceData> = Particle::iter_from_reader(&mut particle_file)
+                    .map(|particle: Particle| {
+                        InstanceData {
+                            position: Vec3::new(
+                                particle.x as f32,
+                                particle.y as f32,
+                                particle.y as f32,
+                            ),
+                            scale: 1.0,
+                            color:  Color::hex("ffd891").unwrap().as_rgba_f32(),
+                        }
+                    }).collect();
+                if let Err(_) = sender_from.try_send(instance_data) {
+                    println!("Loader thread: Unexpected stop, main thread no longer receiving");
+                    break;
+                }
+            }
+        });
+
+        commands.insert_resource(StreamReceiver(receiver_from)); //TODO make system which receives this data
+
+        ParticleLoader {
+            buffered_octant_loader,
+            loaded_octants: VecMap::new(),
+            loader_thread_sender: sender_to,
+            initial_mesh
+        }
+    }
+    fn manage_chunks(
+        &mut self, 
+        commands: &mut Commands, 
+        render_device: Res<RenderDevice>, 
+        pos: Vec3, 
+        radius: f32,
+    ) {
         let sphere = Sphere {
             center: pos.into(),
             radius
         };
 
         let (new_octants, unloaded_octants) = self.buffered_octant_loader.load_octants(sphere);
-        for octant in unloaded_octants {
-             
+        for (index, octant) in new_octants {
+
+            let dummy: Vec<InstanceData> = vec![];
+            let instance_buffer = InstanceBuffer {
+                buffer: render_device.create_buffer_with_data(&BufferInitDescriptor{
+                    label: Some("Empty test buffer"), // TODO
+                    contents: bytemuck::cast_slice(dummy.as_slice()),
+                    usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                }),
+                length: 0,
+            };
+            let chunk = Chunk::new(
+                octant.octant_id,
+                octant.aabb.clone(),
+                self.initial_mesh.clone(),
+                instance_buffer,
+            );
+            let entity_command = commands.spawn_bundle(chunk);
+            let entity = entity_command.id();
+            self.loaded_octants.insert(index, entity);
+        }
+        for (index, _octant) in unloaded_octants {
+            let entity = self.loaded_octants.remove(index).expect("loaded octant was not found");
+            commands.entity(entity).despawn();
         }
 
     }

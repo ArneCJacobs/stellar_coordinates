@@ -5,28 +5,27 @@ use std::path::PathBuf;
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     prelude::*,
-    render::{
-        primitives::Aabb,
-        renderer::RenderDevice
-    }
+    render::{primitives::Aabb, renderer::RenderDevice},
 };
 
-use bevy_inspector_egui::{WorldInspectorPlugin};
+use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_prototype_debug_lines::*;
 use flate2::read::GzDecoder;
 use itertools::Itertools;
 use serde::Deserialize;
-use smooth_bevy_cameras::{controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin}, LookTransformPlugin};
+use smooth_bevy_cameras::{
+    controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin},
+    LookTransformPlugin,
+};
 
-use crate::gpu_instancing::{CustomMaterialPlugin, InstanceData};
 use crate::chunk::util::METADATA_FILE;
 use crate::chunk::Catalog;
+use crate::gpu_instancing::{CustomMaterialPlugin, InstanceData};
 
-
+mod chunk;
 mod cursor;
 mod gpu_instancing;
 mod util;
-mod chunk;
 
 const CHUNK_SIZE: f32 = 50.0;
 const LIMIT: u32 = 3_000_000;
@@ -36,7 +35,6 @@ const STAR_COUNT: u32 = 3_000_000;
 struct StarsLOD(Vec<(u32, Handle<Mesh>)>);
 
 fn main() {
-
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(WorldInspectorPlugin::new()) // in game inspector
@@ -45,7 +43,9 @@ fn main() {
         .add_plugin(FpsCameraPlugin::default())
         .add_system(cursor::cursor_grab_system)
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .add_plugin(LogDiagnosticsPlugin::filtered(vec![FrameTimeDiagnosticsPlugin::FPS]))
+        .add_plugin(LogDiagnosticsPlugin::filtered(vec![
+            FrameTimeDiagnosticsPlugin::FPS,
+        ]))
         .add_plugin(DebugLinesPlugin::default())
         .insert_resource(WindowDescriptor {
             // uncomment for unthrottled FPS
@@ -53,48 +53,46 @@ fn main() {
             ..default()
         })
         .insert_resource(StarsLOD(vec![]))
-
+        .add_system(draw_bounding_box_system)
         .add_startup_system(setup)
         .run();
 }
 
 fn draw_bounding_box_system(
     mut lines: ResMut<DebugLines>,
-    query: Query<&bevy::render::primitives::Aabb>
+    query: Query<&bevy::render::primitives::Aabb>,
 ) {
     for aabb in query.iter() {
         util::draw_bounding_box(&mut lines, aabb);
     }
 }
 
-
 //fn LOD_system(
-    //mut query: Query<(Entity, &mut Handle<Mesh>, &ChunkPos),With<InstanceBuffer>>,
-    //camera: Query<(&Transform,), With<FpsCameraController>>,
-    //LOD_map: Res<StarsLOD>,
-    //commands: Commands,
+//mut query: Query<(Entity, &mut Handle<Mesh>, &ChunkPos),With<InstanceBuffer>>,
+//camera: Query<(&Transform,), With<FpsCameraController>>,
+//LOD_map: Res<StarsLOD>,
+//commands: Commands,
 //) {
-    //let (camera_transform,) = camera.get_single().unwrap();
-    //let camera_chunk_pos = to_chunk_location(camera_transform.translation);
+//let (camera_transform,) = camera.get_single().unwrap();
+//let camera_chunk_pos = to_chunk_location(camera_transform.translation);
 
-    //for (entity, mesh, chunk_pos) in query.iter_mut() {
-        //let diff = (camera_chunk_pos - chunk_pos.0).abs();
-        //let taxi_dist = (diff.x + diff.y + diff.z) as u32;
-        //let mut new_mesh = LOD_map.0[0].1;
-        //for (dist, mesh_handle) in LOD_map.0.into_iter() {
-            //if taxi_dist <= dist {
-                //new_mesh = mesh_handle;
-            //} else {
-                //break;
-            //}
-        //}
-        //commands.entity(entity).insert(new_mesh);
-    //}
+//for (entity, mesh, chunk_pos) in query.iter_mut() {
+//let diff = (camera_chunk_pos - chunk_pos.0).abs();
+//let taxi_dist = (diff.x + diff.y + diff.z) as u32;
+//let mut new_mesh = LOD_map.0[0].1;
+//for (dist, mesh_handle) in LOD_map.0.into_iter() {
+//if taxi_dist <= dist {
+//new_mesh = mesh_handle;
+//} else {
+//break;
+//}
+//}
+//commands.entity(entity).insert(new_mesh);
+//}
 
 //}
 
 fn load_chunks() -> HashMap<IVec3, Vec<InstanceData>> {
-
     let file = File::open("./data/stars_big_transformed.csv.gz").expect("Could not open file");
     let decoder = GzDecoder::new(file);
     let reader = csv::ReaderBuilder::new().from_reader(decoder);
@@ -104,15 +102,19 @@ fn load_chunks() -> HashMap<IVec3, Vec<InstanceData>> {
     for record in reader.into_deserialize::<Pos>() {
         if let Ok(star_pos) = record {
             print!("\r                                            ");
-            print!("\r {:06}/{} {:.3}%",index, STAR_COUNT, (index as f32) / (STAR_COUNT as f32) * 100f32);
+            print!(
+                "\r {:06}/{} {:.3}%",
+                index,
+                STAR_COUNT,
+                (index as f32) / (STAR_COUNT as f32) * 100f32
+            );
 
             let star_pos_inst = InstanceData {
                 position: Vec3::new(star_pos.x * SCALE, star_pos.z * SCALE, star_pos.y * SCALE),
                 scale: 1.0,
-                color:  Color::hex("ffd891").unwrap().as_rgba_f32(),
+                color: Color::hex("ffd891").unwrap().as_rgba_f32(),
             };
             stars.push(star_pos_inst);
-
         }
         //let star_pos: Pos = record.unwrap();
         index += 1;
@@ -132,8 +134,9 @@ fn load_chunks() -> HashMap<IVec3, Vec<InstanceData>> {
     //}
     //}).collect::<Vec<InstanceData>>();
 
-    return stars.into_iter().into_group_map_by(|star_pos| to_chunk_location(star_pos.position));
-
+    return stars
+        .into_iter()
+        .into_group_map_by(|star_pos| to_chunk_location(star_pos.position));
 }
 
 fn to_chunk_location(location: Vec3) -> IVec3 {
@@ -150,8 +153,12 @@ struct Pos {
 #[derive(Component)]
 struct ChunkPos(IVec3);
 
-trait Thing {
-    fn get_x() -> f32;
+fn catalog_system(
+    commands: &mut Commands,
+    render_device: Res<RenderDevice>,
+    catalog: Res<Catalog>,
+    ) {
+
 }
 
 fn setup(
@@ -159,50 +166,52 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     _render_device: Res<RenderDevice>,
 ) {
-
-    let ico_sphere = meshes.add(Mesh::from(shape::Icosphere { radius: 0.1f32, subdivisions: 0 }));
+    let ico_sphere = meshes.add(Mesh::from(shape::Icosphere {
+        radius: 0.1f32,
+        subdivisions: 0,
+    }));
 
     //let chunks = load_chunks();
     //for (chunk_pos, value) in chunks.iter() {
-        //let chunk_corner_pos = chunk_pos.as_vec3() * CHUNK_SIZE;
-        //let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            //label: Some("instance data buffer"),
-            //contents: bytemuck::cast_slice(value.as_slice()),
-            //usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-        //});
+    //let chunk_corner_pos = chunk_pos.as_vec3() * CHUNK_SIZE;
+    //let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+    //label: Some("instance data buffer"),
+    //contents: bytemuck::cast_slice(value.as_slice()),
+    //usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+    //});
 
-        //commands.spawn().insert_bundle((
-            //meshes.get_handle(&ico_sphere),
-            //Transform::from_xyz(0.0, 0.0, 0.0),
-            //GlobalTransform::default(),
-            //InstanceBuffer {
-                //buffer,
-                //length: value.len(),
-            //},
-            //ChunkPos(chunk_pos.clone()),
-            //Visibility{ is_visible: true },
-            //ComputedVisibility::default(),
-            //Aabb::from_min_max(chunk_corner_pos, chunk_corner_pos + CHUNK_SIZE)
-        //));
+    //commands.spawn().insert_bundle((
+    //meshes.get_handle(&ico_sphere),
+    //Transform::from_xyz(0.0, 0.0, 0.0),
+    //GlobalTransform::default(),
+    //InstanceBuffer {
+    //buffer,
+    //length: value.len(),
+    //},
+    //ChunkPos(chunk_pos.clone()),
+    //Visibility{ is_visible: true },
+    //ComputedVisibility::default(),
+    //Aabb::from_min_max(chunk_corner_pos, chunk_corner_pos + CHUNK_SIZE)
+    //));
     //}
     //
-    let catalog = Catalog::new("catalog_gaia_dr3_small".to_string()); 
-    
-    let octree_path = "/home/steam/git/stellar_coordinates_test/data/catalogs/catalog_gaia_dr3_small/catalog/gaia-dr3-small";
-    let metadata_file_path: PathBuf = [octree_path, METADATA_FILE].iter().collect();
+    let catalog = Catalog::new("catalog_gaia_dr3_small".to_string());
+    commands.insert_resource(catalog);
+    //
+    // let octree_path = "/home/steam/git/stellar_coordinates_test/data/catalogs/catalog_gaia_dr3_small/catalog/gaia-dr3-small";
+    // let metadata_file_path: PathBuf = [octree_path, METADATA_FILE].iter().collect();
     //let chunk_loader = ChunkLoader::new(
-        //metadata_file_path,
-        //meshes.get_handle(&ico_sphere),
-        //Vec3::ZERO
+    //metadata_file_path,
+    //meshes.get_handle(&ico_sphere),
+    //Vec3::ZERO
     //);
 
     //commands.insert_resource(
-        //chunk_loader   
+    //chunk_loader
     //);
 
-
     let controller = FpsCameraController {
-        smoothing_weight : 0.6,
+        smoothing_weight: 0.6,
         translate_sensitivity: 0.1,
         mouse_rotate_sensitivity: Vec2::splat(0.001),
         ..Default::default()
@@ -215,7 +224,6 @@ fn setup(
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(1., 0., 0.),
         ));
-
 
     //let mesh_close = meshes.add(Mesh::from(shape::Icosphere { radius: 0.1f32, subdivisions: 5 }));
     //let mesh_far = meshes.add(Mesh::from(shape::Icosphere { radius: 0.1f32, subdivisions: 0 }));
