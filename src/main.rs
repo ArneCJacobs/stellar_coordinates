@@ -158,7 +158,7 @@ fn catalog_system(
     render_device: Res<RenderDevice>,
     catalog: Res<Catalog>,
     ) {
-
+    catalog.
 }
 
 fn setup(
