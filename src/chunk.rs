@@ -201,7 +201,7 @@ impl Catalog {
         let mut catalog_description = catalog_dir.join(name);
         catalog_description.set_extension("json");
 
-        let catalog_description_file = File::open(catalog_description).unwrap();
+        let catalog_description_file = File::open(catalog_description).expect("Could not find/open catalog");
         let catalog_data: CatalogData = serde_json::from_reader(catalog_description_file).unwrap();
 
         let metadata_path = catalog_data.files
