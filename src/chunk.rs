@@ -186,22 +186,25 @@ impl BufferedOctantLoader {
 }
 
 pub struct Catalog {
-    particles_dir_path: PathBuf,
-    buffered_octant_loader: BufferedOctantLoader,
+    pub particle_loader: ParticleLoader,
 }
 
 
 const CATALOGS_DIR: &'static str = "./data/catalogs/";
 
 impl Catalog {
-    pub fn new(name: String) -> Self {
+    pub fn new(
+        name: String, 
+        initial_mesh: Handle<Mesh>,
+        commands: &mut Commands,
+    ) -> Self {
         let catalog_dir: PathBuf = [CATALOGS_DIR, name.as_str()].iter().collect();
 
         let name = name.replace("_", "-"); // who though this was a good naming convention
         let mut catalog_description = catalog_dir.join(name);
         catalog_description.set_extension("json");
 
-        let catalog_description_file = File::open(catalog_description).unwrap();
+        let catalog_description_file = File::open(catalog_description).expect("Could not find/open catalog");
         let catalog_data: CatalogData = serde_json::from_reader(catalog_description_file).unwrap();
 
         let metadata_path = catalog_data.files
@@ -223,10 +226,13 @@ impl Catalog {
         let particles_dir_path = catalog_dir.join(particles_dir_path);
 
         let octree = OcTree::from_file(metadata_path); 
+        let particle_loader = ParticleLoader::new(
+            BufferedOctantLoader::new(octree),
+            initial_mesh, commands, particles_dir_path
+        );
 
         Catalog {
-            particles_dir_path,
-            buffered_octant_loader: BufferedOctantLoader::new(octree),
+            particle_loader,
         }
     }    
 
@@ -237,11 +243,13 @@ struct CatalogData {
     files: Vec<PathBuf>
 }
 
+type TestId = usize;
 
-struct ParticleLoader {
+pub struct ParticleLoader {
     buffered_octant_loader: BufferedOctantLoader,
     loaded_octants: VecMap<Entity>,
     initial_mesh: Handle<Mesh>,
+    // sends octant id to the loader thread
     loader_thread_sender: Sender<usize>,
 }
 
@@ -249,8 +257,14 @@ struct ParticleLoader {
 struct StreamReceiver(Receiver<Vec<InstanceData>>);
 
 impl ParticleLoader {
-    fn new(buffered_octant_loader: BufferedOctantLoader, initial_mesh: Handle<Mesh>, commands: &mut Commands, particles_dir_path: PathBuf) -> Self {
+    fn new(
+        buffered_octant_loader: BufferedOctantLoader, 
+        initial_mesh: Handle<Mesh>, 
+        commands: &mut Commands, 
+        particles_dir_path: PathBuf
+    ) -> Self {
 
+        // sends and receives octant ids to and from the loader thread
         let (sender_to, receiver_to): (Sender<usize>, Receiver<usize>) = unbounded();
         let (sender_from, receiver_from): (Sender<Vec<InstanceData>>, Receiver<Vec<InstanceData>>) = unbounded();
 
@@ -287,7 +301,10 @@ impl ParticleLoader {
             initial_mesh
         }
     }
-    fn manage_chunks(
+
+    // adds and removes chunks from bevy when the corresponding octant is out of render distance
+    // in the octree
+    pub fn update_chunks(
         &mut self, 
         commands: &mut Commands, 
         render_device: Res<RenderDevice>, 
