@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     prelude::*,
-    render::{primitives::Aabb, renderer::RenderDevice},
+    render::{primitives::{Aabb, Sphere}, renderer::RenderDevice},
 };
 
 use bevy_inspector_egui::WorldInspectorPlugin;
@@ -161,10 +161,14 @@ fn catalog_system(
 
 }
 
+struct ViewRadiusResource {
+    radius: f32,
+}
+
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    _render_device: Res<RenderDevice>,
+    render_device: Res<RenderDevice>,
 ) {
     let ico_sphere = meshes.add(Mesh::from(shape::Icosphere {
         radius: 0.1f32,
@@ -194,8 +198,13 @@ fn setup(
     //Aabb::from_min_max(chunk_corner_pos, chunk_corner_pos + CHUNK_SIZE)
     //));
     //}
-    //
-    let catalog = Catalog::new("catalog_gaia_dr3_small".to_string());
+    let view_radius = ViewRadiusResource{ radius: 1.0 };
+    let mut catalog = Catalog::new(
+        "catalog_gaia_dr3_small".to_string(),
+        ico_sphere,
+        &mut commands,
+    );
+    catalog.particle_loader.manage_chunks(&mut commands, render_device, Vec3::ZERO, view_radius.radius);
     commands.insert_resource(catalog);
     //
     // let octree_path = "/home/steam/git/stellar_coordinates_test/data/catalogs/catalog_gaia_dr3_small/catalog/gaia-dr3-small";
