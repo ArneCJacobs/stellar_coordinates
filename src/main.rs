@@ -204,7 +204,7 @@ fn setup(
         ico_sphere,
         &mut commands,
     );
-    catalog.particle_loader.manage_chunks(&mut commands, render_device, Vec3::ZERO, view_radius.radius);
+    catalog.particle_loader.update_chunks(&mut commands, render_device, Vec3::ZERO, view_radius.radius);
     commands.insert_resource(catalog);
     //
     // let octree_path = "/home/steam/git/stellar_coordinates_test/data/catalogs/catalog_gaia_dr3_small/catalog/gaia-dr3-small";

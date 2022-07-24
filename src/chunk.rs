@@ -301,7 +301,10 @@ impl ParticleLoader {
             initial_mesh
         }
     }
-    pub fn manage_chunks(
+
+    // adds and removes chunks from bevy when the corresponding octant is out of render distance
+    // in the octree
+    pub fn update_chunks(
         &mut self, 
         commands: &mut Commands, 
         render_device: Res<RenderDevice>, 
