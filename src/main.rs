@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     prelude::*,
-    render::{primitives::{Aabb, Sphere}, renderer::RenderDevice},
+    render::{primitives::{Aabb, Sphere}, renderer::RenderDevice}, window::PresentMode,
 };
 
 use bevy_inspector_egui::WorldInspectorPlugin;
@@ -36,6 +36,10 @@ struct StarsLOD(Vec<(u32, Handle<Mesh>)>);
 
 fn main() {
     App::new()
+        .insert_resource(WindowDescriptor {
+            present_mode: PresentMode::Immediate,
+            ..Default::default()
+        })
         .add_plugins(DefaultPlugins)
         .add_plugin(WorldInspectorPlugin::new()) // in game inspector
         .add_plugin(CustomMaterialPlugin) // for GPU instancing
@@ -54,6 +58,7 @@ fn main() {
         })
         .insert_resource(StarsLOD(vec![]))
         .add_system(draw_bounding_box_system)
+        .add_system(catalog_system)
         .add_startup_system(setup)
         .run();
 }
@@ -153,14 +158,24 @@ struct Pos {
 #[derive(Component)]
 struct ChunkPos(IVec3);
 
+#[derive(Component)]
+struct Player();
+
 fn catalog_system(
-    commands: &mut Commands,
+    mut commands: Commands,
     render_device: Res<RenderDevice>,
-    catalog: Res<Catalog>,
+    mut player_query: Query<&mut Transform, With<Player>>,
+    mut catalog: ResMut<Catalog>,
+    view_radius: Res<ViewRadiusResource>,
+    time: Res<Time>,
     ) {
-    catalog.
+    let mut player_transform = player_query.get_single_mut().unwrap();
+    player_transform.translation += Vec3::X * 2.0 * time.delta_seconds();
+    catalog.particle_loader.update_chunks(&mut commands, render_device, player_transform.translation, view_radius.radius);
+     
 }
 
+#[derive(Clone, Copy)]
 struct ViewRadiusResource {
     radius: f32,
 }
@@ -199,6 +214,7 @@ fn setup(
     //));
     //}
     let view_radius = ViewRadiusResource{ radius: 1.0 };
+    commands.insert_resource(view_radius);
     let mut catalog = Catalog::new(
         "catalog_gaia_dr3_small".to_string(),
         ico_sphere,
@@ -233,6 +249,14 @@ fn setup(
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(1., 0., 0.),
         ));
+
+    commands.spawn()
+        .insert(Player())
+        .insert_bundle(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Icosphere { radius: view_radius.radius, subdivisions: 5  })),
+            ..Default::default()
+        })
+        .insert_bundle(TransformBundle::identity());
 
     //let mesh_close = meshes.add(Mesh::from(shape::Icosphere { radius: 0.1f32, subdivisions: 5 }));
     //let mesh_far = meshes.add(Mesh::from(shape::Icosphere { radius: 0.1f32, subdivisions: 0 }));
