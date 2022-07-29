@@ -148,7 +148,8 @@ fn to_chunk_location(location: Vec3) -> IVec3 {
     (location / CHUNK_SIZE).floor().as_ivec3()
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
+#[allow(dead_code)]
 struct Pos {
     x: f32,
     y: f32,
@@ -213,10 +214,10 @@ fn setup(
     //Aabb::from_min_max(chunk_corner_pos, chunk_corner_pos + CHUNK_SIZE)
     //));
     //}
-    let view_radius = ViewRadiusResource{ radius: 1.0 };
+    let view_radius = ViewRadiusResource{ radius: 4.0 };
     commands.insert_resource(view_radius);
     let mut catalog = Catalog::new(
-        "catalog_gaia_dr3_small".to_string(),
+        "catalog_gaia_dr3_extralarge".to_string(),
         ico_sphere,
         &mut commands,
     );

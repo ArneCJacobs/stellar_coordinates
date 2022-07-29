@@ -204,7 +204,7 @@ impl Catalog {
         let mut catalog_description = catalog_dir.join(name);
         catalog_description.set_extension("json");
 
-        let catalog_description_file = File::open(catalog_description).expect("Could not find/open catalog");
+        let catalog_description_file = File::open(catalog_description.clone()).expect(&format!("Could not find/open catalog, {}", catalog_description.to_str().unwrap()).to_string());
         let catalog_data: CatalogData = serde_json::from_reader(catalog_description_file).unwrap();
 
         let metadata_path = catalog_data.files
@@ -228,7 +228,7 @@ impl Catalog {
         let octree = OcTree::from_file(metadata_path); 
         let particle_loader = ParticleLoader::new(
             BufferedOctantLoader::new(octree),
-            initial_mesh, commands, particles_dir_path
+            initial_mesh, particles_dir_path
         );
 
         Catalog {
@@ -250,27 +250,36 @@ pub struct ParticleLoader {
     loaded_octants: VecMap<Entity>,
     initial_mesh: Handle<Mesh>,
     // sends octant id to the loader thread
-    loader_thread_sender: Sender<usize>,
+    loader_thread_sender: Sender<OctantData>,
+    // receives particle data send from the loader thread
+    main_tread_receiver: Receiver<OctantData>,
 }
 
+pub struct OctantData {
+    pub octant_id: usize,
+    pub octant_index: usize,
+    pub instance_data_opt: Option<Vec<InstanceData>>,
+}
+
+
 #[derive(Deref)]
-struct StreamReceiver(Receiver<Vec<InstanceData>>);
+struct StreamReceiver(Receiver<OctantData>);
 
 impl ParticleLoader {
     fn new(
         buffered_octant_loader: BufferedOctantLoader, 
         initial_mesh: Handle<Mesh>, 
-        commands: &mut Commands, 
         particles_dir_path: PathBuf
     ) -> Self {
 
         // sends and receives octant ids to and from the loader thread
-        let (sender_to, receiver_to): (Sender<usize>, Receiver<usize>) = unbounded();
-        let (sender_from, receiver_from): (Sender<Vec<InstanceData>>, Receiver<Vec<InstanceData>>) = unbounded();
+        let (sender_to, receiver_to): (Sender<OctantData>, Receiver<OctantData>) = unbounded();
+        // sends and receives the loaded data back to the main thread
+        let (sender_from, receiver_from): (Sender<OctantData>, Receiver<OctantData>) = unbounded();
 
         std::thread::spawn(move || {
-            while let Ok(octant_id) = receiver_to.recv() {
-                let mut particle_file_path = particles_dir_path.join(format!("particles_{}", octant_id.to_string()));
+            while let Ok(mut octant_data) = receiver_to.recv() {
+                let mut particle_file_path = particles_dir_path.join(format!("particles_{}", octant_data.octant_id.to_string()));
                 particle_file_path.set_extension("bin");
                 let mut particle_file = File::open(particle_file_path).unwrap();
                 let instance_data: Vec<InstanceData> = Particle::iter_from_reader(&mut particle_file)
@@ -285,20 +294,22 @@ impl ParticleLoader {
                             color:  Color::hex("ffd891").unwrap().as_rgba_f32(),
                         }
                     }).collect();
-                if let Err(_) = sender_from.try_send(instance_data) {
+                octant_data.instance_data_opt = Some(instance_data);
+                if let Err(_) = sender_from.try_send(octant_data) {
                     println!("Loader thread: Unexpected stop, main thread no longer receiving");
                     break;
                 }
             }
         });
 
-        commands.insert_resource(StreamReceiver(receiver_from)); //TODO make system which receives this data
+        // commands.insert_resource(StreamReceiver(receiver_from)); //TODO make system which receives this data
 
         ParticleLoader {
             buffered_octant_loader,
             loaded_octants: VecMap::new(),
             loader_thread_sender: sender_to,
-            initial_mesh
+            initial_mesh,
+            main_tread_receiver: receiver_from,
         }
     }
 
@@ -314,30 +325,48 @@ impl ParticleLoader {
         let sphere = Sphere {
             center: pos.into(),
             radius
+
         };
 
-        let (new_octants, unloaded_octants) = self.buffered_octant_loader.load_octants(sphere);
-        for (index, octant) in new_octants {
-
-            let dummy: Vec<InstanceData> = vec![];
-            let instance_buffer = InstanceBuffer {
-                buffer: render_device.create_buffer_with_data(&BufferInitDescriptor{
-                    label: Some("Empty test buffer"), // TODO
-                    contents: bytemuck::cast_slice(dummy.as_slice()),
-                    usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-                }),
-                length: 0,
-            };
-            let chunk = Chunk::new(
-                octant.octant_id,
-                octant.aabb.clone(),
-                self.initial_mesh.clone(),
-                instance_buffer,
-            );
-            let entity_command = commands.spawn_bundle(chunk);
-            let entity = entity_command.id();
-            self.loaded_octants.insert(index, entity);
+        // received particle data from loader thread and add it to bevy
+        for octant_data in self.main_tread_receiver.try_iter() {
+            let octant_opt = self.buffered_octant_loader.octree.octants.get(octant_data.octant_index);
+            if let Some(instance_data) = octant_data.instance_data_opt {
+                let instance_buffer = InstanceBuffer {
+                    buffer: render_device.create_buffer_with_data(&BufferInitDescriptor{
+                        label: Some(format!("Octant {}", octant_data.octant_id).as_str()),
+                        contents: bytemuck::cast_slice(instance_data.as_slice()),
+                        usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                    }),
+                    length: instance_data.len(),
+                };
+                let chunk = Chunk::new(
+                    octant_data.octant_id,
+                    octant_opt.unwrap().aabb.clone(),
+                    self.initial_mesh.clone(),
+                    instance_buffer,
+                );
+                let entity_command = commands.spawn_bundle(chunk);
+                let entity = entity_command.id();
+                self.loaded_octants.insert(octant_data.octant_index, entity);
+            }
         }
+
+        // get which octant need to be loaded or unloaded
+        let (new_octants, unloaded_octants) = self.buffered_octant_loader.load_octants(sphere);
+        // send octant that need to be loaded to loader thread
+        for (index, octant) in new_octants {
+            let octant_data = OctantData {
+                octant_id: octant.octant_id,
+                octant_index: index,
+                instance_data_opt : None,
+            };
+            if let Err(error) = self.loader_thread_sender.try_send(octant_data) {
+                panic!("Could not send octant load request to worker thread, reason: {}", error);
+            }
+        }
+
+        // octants that need to be unloaded are removed from entities
         for (index, _octant) in unloaded_octants {
             let entity = self.loaded_octants.remove(index).expect("loaded octant was not found");
             commands.entity(entity).despawn();
