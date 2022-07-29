@@ -280,7 +280,7 @@ impl ParticleLoader {
                             position: Vec3::new(
                                 particle.x as f32,
                                 particle.y as f32,
-                                particle.y as f32,
+                                particle.z as f32,
                             ),
                             scale: 1.0,
                             color:  Color::hex("ffd891").unwrap().as_rgba_f32(),
