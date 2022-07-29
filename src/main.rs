@@ -41,12 +41,13 @@ fn main() {
             present_mode: PresentMode::Immediate,
             ..default()
         })
-        .add_system(draw_bounding_box_system)
+        // .add_system(draw_bounding_box_system)
         .add_system(catalog_system)
         .add_startup_system(setup)
         .run();
 }
 
+#[allow(dead_code)]
 fn draw_bounding_box_system(
     mut lines: ResMut<DebugLines>,
     query: Query<&bevy::render::primitives::Aabb>,
@@ -86,7 +87,7 @@ fn setup(
         subdivisions: 0,
     }));
 
-    let view_radius = ViewRadiusResource{ radius: 4.0 };
+    let view_radius = ViewRadiusResource{ radius: 40.0 };
     commands.insert_resource(view_radius);
     let mut catalog = Catalog::new(
         "catalog_gaia_dr3_extralarge".to_string(),
