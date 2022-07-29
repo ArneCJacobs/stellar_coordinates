@@ -171,7 +171,7 @@ fn catalog_system(
     time: Res<Time>,
     ) {
     let mut player_transform = player_query.get_single_mut().unwrap();
-    player_transform.translation += Vec3::X * 2.0 * time.delta_seconds();
+    // player_transform.translation += Vec3::X * 2.0 * time.delta_seconds();
     catalog.particle_loader.update_chunks(&mut commands, render_device, player_transform.translation, view_radius.radius);
      
 }

@@ -2,6 +2,7 @@ use std::io::BufReader;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
+use std::thread::JoinHandle;
 use bevy::math::Vec3;
 use bevy::ecs::bundle::Bundle;
 use bevy::render::primitives::Aabb;
@@ -230,6 +231,12 @@ struct CatalogData {
     files: Vec<PathBuf>
 }
 
+pub struct OctantData {
+    pub octant_id: usize,
+    pub octant_index: usize,
+    pub instance_data_opt: Option<Vec<InstanceData>>,
+}
+
 pub struct ParticleLoader {
     buffered_octant_loader: BufferedOctantLoader,
     loaded_octants: VecMap<Entity>,
@@ -238,13 +245,10 @@ pub struct ParticleLoader {
     loader_thread_sender: Sender<OctantData>,
     // receives particle data send from the loader thread
     main_tread_receiver: Receiver<OctantData>,
+    loader_thread_join_handle: JoinHandle<()>,
+    
 }
 
-pub struct OctantData {
-    pub octant_id: usize,
-    pub octant_index: usize,
-    pub instance_data_opt: Option<Vec<InstanceData>>,
-}
 
 
 #[derive(Deref)]
@@ -262,12 +266,16 @@ impl ParticleLoader {
         // sends and receives the loaded data back to the main thread
         let (sender_from, receiver_from): (Sender<OctantData>, Receiver<OctantData>) = unbounded();
 
-        std::thread::Builder::new().name("Loader thread".to_string()).spawn(move || {
+        let join_handle = std::thread::Builder::new().name("Loader thread".to_string()).spawn(move || {
             while let Ok(mut octant_data) = receiver_to.recv() {
                 let mut particle_file_path = particles_dir_path.join(format!("particles_{}", octant_data.octant_id.to_string()));
                 particle_file_path.set_extension("bin");
-                let mut particle_file = File::open(particle_file_path).unwrap();
-                let instance_data: Vec<InstanceData> = Particle::iter_from_reader(&mut particle_file)
+                let particle_file = File::open(particle_file_path.clone());
+                if let Err(error) = particle_file {
+                    eprintln!("An error occured while opening particle file: {:?}, error: {}", particle_file_path.to_str(), error);
+                    break;
+                }
+                let instance_data: Vec<InstanceData> = Particle::iter_from_reader(&mut particle_file.unwrap())
                     .map(|particle: Particle| {
                         InstanceData {
                             position: Vec3::new(
@@ -281,10 +289,11 @@ impl ParticleLoader {
                     }).collect();
                 octant_data.instance_data_opt = Some(instance_data);
                 if let Err(_) = sender_from.try_send(octant_data) {
-                    println!("Loader thread: Unexpected stop, main thread no longer receiving");
+                    eprintln!("Loader thread: Unexpected stop, main thread no longer receiving");
                     break;
                 }
             }
+
         }).unwrap();
 
         // commands.insert_resource(StreamReceiver(receiver_from)); //TODO make system which receives this data
@@ -295,6 +304,7 @@ impl ParticleLoader {
             loader_thread_sender: sender_to,
             initial_mesh,
             main_tread_receiver: receiver_from,
+            loader_thread_join_handle: join_handle,
         }
     }
 
@@ -307,6 +317,9 @@ impl ParticleLoader {
         pos: Vec3, 
         radius: f32,
     ) {
+        if self.loader_thread_join_handle.is_finished() {
+            panic!("Loaded thread stopped running!");
+        }
         let sphere = Sphere {
             center: pos.into(),
             radius
