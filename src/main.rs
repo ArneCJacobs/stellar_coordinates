@@ -18,7 +18,6 @@ use smooth_bevy_cameras::{
     LookTransformPlugin,
 };
 
-use crate::chunk::util::METADATA_FILE;
 use crate::chunk::Catalog;
 use crate::gpu_instancing::{CustomMaterialPlugin, InstanceData};
 
@@ -26,11 +25,6 @@ mod chunk;
 mod cursor;
 mod gpu_instancing;
 mod util;
-
-const CHUNK_SIZE: f32 = 50.0;
-const LIMIT: u32 = 3_000_000;
-const SCALE: f32 = 2.0;
-const STAR_COUNT: u32 = 3_000_000;
 
 struct StarsLOD(Vec<(u32, Handle<Mesh>)>);
 
@@ -48,12 +42,12 @@ fn main() {
         .add_system(cursor::cursor_grab_system)
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(LogDiagnosticsPlugin::filtered(vec![
-            FrameTimeDiagnosticsPlugin::FPS,
+            // FrameTimeDiagnosticsPlugin::FPS,
         ]))
         .add_plugin(DebugLinesPlugin::default())
         .insert_resource(WindowDescriptor {
             // uncomment for unthrottled FPS
-            // present_mode: PresentMode::Immediate,
+            present_mode: PresentMode::Immediate,
             ..default()
         })
         .insert_resource(StarsLOD(vec![]))
@@ -97,59 +91,8 @@ fn draw_bounding_box_system(
 
 //}
 
-fn load_chunks() -> HashMap<IVec3, Vec<InstanceData>> {
-    let file = File::open("./data/stars_big_transformed.csv.gz").expect("Could not open file");
-    let decoder = GzDecoder::new(file);
-    let reader = csv::ReaderBuilder::new().from_reader(decoder);
-
-    let mut index = 0;
-    let mut stars: Vec<InstanceData> = vec![];
-    for record in reader.into_deserialize::<Pos>() {
-        if let Ok(star_pos) = record {
-            print!("\r                                            ");
-            print!(
-                "\r {:06}/{} {:.3}%",
-                index,
-                STAR_COUNT,
-                (index as f32) / (STAR_COUNT as f32) * 100f32
-            );
-
-            let star_pos_inst = InstanceData {
-                position: Vec3::new(star_pos.x * SCALE, star_pos.z * SCALE, star_pos.y * SCALE),
-                scale: 1.0,
-                color: Color::hex("ffd891").unwrap().as_rgba_f32(),
-            };
-            stars.push(star_pos_inst);
-        }
-        //let star_pos: Pos = record.unwrap();
-        index += 1;
-        if index >= LIMIT {
-            break;
-        }
-    }
-    //let max_radius = stars.iter()
-    //.map(|star: &InstanceData| (star.position.x.powf(2.0) + star.position.y.powf(2.0) + star.position.z.powf(2.0)).powf(0.5))
-    //.fold(0.0f32, |num, acc| num.max(acc));
-
-    //let temp_stars = stars.iter().map(|star| {
-    //InstanceData {
-    //position: star.position * max_radius,
-    //scale: 1.0,
-    //color:  Color::hex("91ffd8").unwrap().as_rgba_f32(),
-    //}
-    //}).collect::<Vec<InstanceData>>();
-
-    return stars
-        .into_iter()
-        .into_group_map_by(|star_pos| to_chunk_location(star_pos.position));
-}
-
-fn to_chunk_location(location: Vec3) -> IVec3 {
-    (location / CHUNK_SIZE).floor().as_ivec3()
-}
 
 #[derive(Deserialize)]
-#[allow(dead_code)]
 struct Pos {
     x: f32,
     y: f32,
@@ -213,18 +156,6 @@ fn setup(
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(1., 0., 0.),
         ));
-
-    // commands.spawn()
-    //     .insert(Player())
-    //     .insert_bundle(PbrBundle {
-    //         mesh: meshes.add(Mesh::from(shape::Icosphere { radius: view_radius.radius, subdivisions: 5  })),
-    //         ..Default::default()
-    //     })
-    //     .insert_bundle(TransformBundle::identity());
-
-    //let mesh_close = meshes.add(Mesh::from(shape::Icosphere { radius: 0.1f32, subdivisions: 5 }));
-    //let mesh_far = meshes.add(Mesh::from(shape::Icosphere { radius: 0.1f32, subdivisions: 0 }));
-
     //LOD_map.0.push((0, mesh_close));
     //LOD_map.0.push((1, mesh_far));
 }
