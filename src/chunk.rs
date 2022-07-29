@@ -171,18 +171,6 @@ impl BufferedOctantLoader {
         return (new_octants, unloaded_octants);
         
     }
-
-
-    pub fn print(&self) {
-        let temp = vec![5, 12, 8, 16, 10, 11, 7, 13, 9];
-        for (index, octant) in self.octree.octants.iter().enumerate().take(20).filter(|(i, _)| temp.contains(&i)) {
-            println!("{:?}, {:?}", index, octant);
-        }
-    }
-
-    //fn load_chunks(view_radius: f32) -> impl Iterator<Item=Chunk> {
-        //todo!();
-    //}
 }
 
 pub struct Catalog {
@@ -196,7 +184,6 @@ impl Catalog {
     pub fn new(
         name: String, 
         initial_mesh: Handle<Mesh>,
-        commands: &mut Commands,
     ) -> Self {
         let catalog_dir: PathBuf = [CATALOGS_DIR, name.as_str()].iter().collect();
 
@@ -243,8 +230,6 @@ struct CatalogData {
     files: Vec<PathBuf>
 }
 
-type TestId = usize;
-
 pub struct ParticleLoader {
     buffered_octant_loader: BufferedOctantLoader,
     loaded_octants: VecMap<Entity>,
@@ -277,7 +262,7 @@ impl ParticleLoader {
         // sends and receives the loaded data back to the main thread
         let (sender_from, receiver_from): (Sender<OctantData>, Receiver<OctantData>) = unbounded();
 
-        std::thread::spawn(move || {
+        std::thread::Builder::new().name("Loader thread".to_string()).spawn(move || {
             while let Ok(mut octant_data) = receiver_to.recv() {
                 let mut particle_file_path = particles_dir_path.join(format!("particles_{}", octant_data.octant_id.to_string()));
                 particle_file_path.set_extension("bin");
@@ -300,7 +285,7 @@ impl ParticleLoader {
                     break;
                 }
             }
-        });
+        }).unwrap();
 
         // commands.insert_resource(StreamReceiver(receiver_from)); //TODO make system which receives this data
 
@@ -368,7 +353,9 @@ impl ParticleLoader {
 
         // octants that need to be unloaded are removed from entities
         for (index, _octant) in unloaded_octants {
-            let entity = self.loaded_octants.remove(index).expect("loaded octant was not found");
+            let values = self.loaded_octants.values().collect::<Vec<&Entity>>();
+            let error_msg = format!("octant with id: {} was not found, loaded octants: {:?}", index, values);
+            let entity = self.loaded_octants.remove(index).expect(error_msg.as_str());
             commands.entity(entity).despawn();
         }
 

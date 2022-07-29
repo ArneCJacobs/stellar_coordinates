@@ -219,7 +219,6 @@ fn setup(
     let mut catalog = Catalog::new(
         "catalog_gaia_dr3_extralarge".to_string(),
         ico_sphere,
-        &mut commands,
     );
     catalog.particle_loader.update_chunks(&mut commands, render_device, Vec3::ZERO, view_radius.radius);
     commands.insert_resource(catalog);
