@@ -1,32 +1,23 @@
-use std::collections::HashMap;
-use std::fs::File;
-use std::path::PathBuf;
-
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     prelude::*,
-    render::{primitives::{Aabb, Sphere}, renderer::RenderDevice}, window::PresentMode,
+    render::{primitives::Aabb, renderer::RenderDevice}, window::PresentMode,
 };
 
 use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_prototype_debug_lines::*;
-use flate2::read::GzDecoder;
-use itertools::Itertools;
-use serde::Deserialize;
 use smooth_bevy_cameras::{
     controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin},
     LookTransformPlugin,
 };
 
 use crate::chunk::Catalog;
-use crate::gpu_instancing::{CustomMaterialPlugin, InstanceData};
+use crate::gpu_instancing::CustomMaterialPlugin;
 
 mod chunk;
 mod cursor;
 mod gpu_instancing;
 mod util;
-
-struct StarsLOD(Vec<(u32, Handle<Mesh>)>);
 
 fn main() {
     App::new()
@@ -50,7 +41,6 @@ fn main() {
             present_mode: PresentMode::Immediate,
             ..default()
         })
-        .insert_resource(StarsLOD(vec![]))
         .add_system(draw_bounding_box_system)
         .add_system(catalog_system)
         .add_startup_system(setup)
@@ -65,42 +55,6 @@ fn draw_bounding_box_system(
         util::draw_bounding_box(&mut lines, aabb);
     }
 }
-
-//fn LOD_system(
-//mut query: Query<(Entity, &mut Handle<Mesh>, &ChunkPos),With<InstanceBuffer>>,
-//camera: Query<(&Transform,), With<FpsCameraController>>,
-//LOD_map: Res<StarsLOD>,
-//commands: Commands,
-//) {
-//let (camera_transform,) = camera.get_single().unwrap();
-//let camera_chunk_pos = to_chunk_location(camera_transform.translation);
-
-//for (entity, mesh, chunk_pos) in query.iter_mut() {
-//let diff = (camera_chunk_pos - chunk_pos.0).abs();
-//let taxi_dist = (diff.x + diff.y + diff.z) as u32;
-//let mut new_mesh = LOD_map.0[0].1;
-//for (dist, mesh_handle) in LOD_map.0.into_iter() {
-//if taxi_dist <= dist {
-//new_mesh = mesh_handle;
-//} else {
-//break;
-//}
-//}
-//commands.entity(entity).insert(new_mesh);
-//}
-
-//}
-
-
-#[derive(Deserialize)]
-struct Pos {
-    x: f32,
-    y: f32,
-    z: f32,
-}
-
-#[derive(Component)]
-struct ChunkPos(IVec3);
 
 #[derive(Component)]
 struct Player();
@@ -156,6 +110,4 @@ fn setup(
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(1., 0., 0.),
         ));
-    //LOD_map.0.push((0, mesh_close));
-    //LOD_map.0.push((1, mesh_far));
 }
