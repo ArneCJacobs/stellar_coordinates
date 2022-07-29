@@ -246,7 +246,6 @@ pub struct ParticleLoader {
     // receives particle data send from the loader thread
     main_tread_receiver: Receiver<OctantData>,
     loader_thread_join_handle: JoinHandle<()>,
-    
 }
 
 
@@ -268,7 +267,7 @@ impl ParticleLoader {
 
         let join_handle = std::thread::Builder::new().name("Loader thread".to_string()).spawn(move || {
             while let Ok(mut octant_data) = receiver_to.recv() {
-                let mut particle_file_path = particles_dir_path.join(format!("particles_{}", octant_data.octant_id.to_string()));
+                let mut particle_file_path = particles_dir_path.join(format!("particles_{:0>6}", octant_data.octant_id.to_string()));
                 particle_file_path.set_extension("bin");
                 let particle_file = File::open(particle_file_path.clone());
                 if let Err(error) = particle_file {
