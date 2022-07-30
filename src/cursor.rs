@@ -16,11 +16,11 @@ pub fn cursor_grab_system(
     let mut camera_controller = camera_controller_query.get_single_mut().unwrap();
 
     let hovering_over_egui = match egui_context_opt {
-        Some(mut egui_context) => !egui_context.ctx_mut().is_pointer_over_area(),
-        None => true
+        Some(mut egui_context) => egui_context.ctx_mut().is_pointer_over_area(),
+        None => false
     };
 
-    if btn.just_pressed(MouseButton::Left) && hovering_over_egui {
+    if btn.just_pressed(MouseButton::Left) && !hovering_over_egui {
         window.set_cursor_lock_mode(true);
         window.set_cursor_visibility(false);
         camera_controller.enabled = true;
