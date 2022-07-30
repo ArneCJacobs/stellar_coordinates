@@ -1,7 +1,5 @@
 use byteorder::{ReadBytesExt, BigEndian};
-use std::{
-    io::{self, Read},
-};
+use std::io::{self, Read};
 use crate::chunk::util::GITP;
 
 // https://gaia.ari.uni-heidelberg.de/gaiasky/docs/master/Data-streaming.html#version-2
@@ -15,7 +13,9 @@ fn rgba_from_float(float: f32) -> [u8; 4] {
 
 #[derive(Debug)]
 struct ParticleFile {
+    #[allow(dead_code)]
     token: i32,
+    #[allow(dead_code)]
     version: i32,
     size: i32,
 }

@@ -251,14 +251,17 @@ impl ParticleLoader {
                 }
                 let instance_data: Vec<InstanceData> = Particle::iter_from_reader(&mut particle_file.unwrap())
                     .map(|particle: Particle| {
+                        let size = (particle.size.log2() / 14.0 - 1.0) * 1.8 + 1.0;
+                        println!("size: {}", size);
+                        let [r,g,b,a] = particle.color;
                         InstanceData {
                             position: Vec3::new(
                                 particle.x as f32,
                                 particle.y as f32,
                                 particle.z as f32,
                             ),
-                            scale: 1.0,
-                            color:  Color::hex("ffd891").unwrap().as_rgba_f32(),
+                            scale: size,
+                            color:  Color::rgba_u8(r,g,b,a).as_rgba_f32(),
                         }
                     }).collect();
                 octant_data.instance_data_opt = Some(instance_data);
@@ -282,6 +285,7 @@ impl ParticleLoader {
         let (loader_thread_sender, main_thread_receiver): (Sender<OctantData>, Receiver<OctantData>) = unbounded();
 
         let mut join_handles = Vec::new();
+        println!("Available parallelism: {}", std::thread::available_parallelism().unwrap().get());
         for index in 0..std::thread::available_parallelism().unwrap().get() - 1 {
             let join_handle = Self::spawn_thread(
                 format!("Loader thread {}", index), 
