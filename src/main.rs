@@ -87,7 +87,7 @@ fn setup(
         subdivisions: 0,
     }));
 
-    let view_radius = ViewRadiusResource{ radius: 1.0 };
+    let view_radius = ViewRadiusResource{ radius: 200.0 };
     commands.insert_resource(view_radius);
     let mut catalog = Catalog::new(
         "catalog_gaia_dr3_extralarge".to_string(),

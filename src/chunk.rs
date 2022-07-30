@@ -121,17 +121,6 @@ impl Chunk {
     }
 }
 
-fn read_particle_file() {
-    let file = File::open("./particles_000000.bin").expect("Could not open file");
-    let mut reader = BufReader::new(file);
-    //let particle_file = ParticleFile::from_reader(reader);
-    //let particle_file: ParticleFile = options.deserialize_from(reader).unwrap();
-    //println!("{:?}", particle_file);
-    for particle in Particle::iter_from_reader(&mut reader).take(1) {
-        println!("{:?}", particle);
-    }
-}
-
 pub struct BufferedOctantLoader {
     octree: OcTree,
     loaded_octants: BitSet,
@@ -243,30 +232,15 @@ pub struct ParticleLoader {
     loaded_octants: VecMap<Entity>,
     initial_mesh: Handle<Mesh>,
     // sends octant id to the loader thread
-    loader_thread_sender: Sender<OctantData>,
+    main_thread_sender: Sender<OctantData>,
     // receives particle data send from the loader thread
-    main_tread_receiver: Receiver<OctantData>,
-    loader_thread_join_handle: JoinHandle<()>,
+    main_thread_receiver: Receiver<OctantData>,
+    loader_threads_join_handles: Vec<JoinHandle<()>>,
 }
 
-
-
-#[derive(Deref)]
-struct StreamReceiver(Receiver<OctantData>);
-
 impl ParticleLoader {
-    fn new(
-        buffered_octant_loader: BufferedOctantLoader, 
-        initial_mesh: Handle<Mesh>, 
-        particles_dir_path: PathBuf
-    ) -> Self {
-
-        // sends and receives octant ids to and from the loader thread
-        let (sender_to, receiver_to): (Sender<OctantData>, Receiver<OctantData>) = unbounded();
-        // sends and receives the loaded data back to the main thread
-        let (sender_from, receiver_from): (Sender<OctantData>, Receiver<OctantData>) = unbounded();
-
-        let join_handle = std::thread::Builder::new().name("Loader thread".to_string()).spawn(move || {
+    fn spawn_thread(name: String, particles_dir_path: PathBuf, receiver_to: Receiver<OctantData>, sender_from: Sender<OctantData>) -> JoinHandle<()> {
+        std::thread::Builder::new().name(name).spawn(move || {
             while let Ok(mut octant_data) = receiver_to.recv() {
                 let mut particle_file_path = particles_dir_path.join(format!("particles_{:0>6}", octant_data.octant_id.to_string()));
                 particle_file_path.set_extension("bin");
@@ -294,16 +268,39 @@ impl ParticleLoader {
                 }
             }
 
-        }).unwrap();
+        }).unwrap()
+    }
+    fn new(
+        buffered_octant_loader: BufferedOctantLoader, 
+        initial_mesh: Handle<Mesh>, 
+        particles_dir_path: PathBuf
+    ) -> Self {
+
+        // sends and receives octant ids to and from the loader thread
+        let (main_thread_sender, loader_thread_receiver): (Sender<OctantData>, Receiver<OctantData>) = unbounded();
+        // sends and receives the loaded data back to the main thread
+        let (loader_thread_sender, main_thread_receiver): (Sender<OctantData>, Receiver<OctantData>) = unbounded();
+
+        let mut join_handles = Vec::new();
+        for index in 0..std::thread::available_parallelism().unwrap().get() - 1 {
+            let join_handle = Self::spawn_thread(
+                format!("Loader thread {}", index), 
+                particles_dir_path.clone(), 
+                loader_thread_receiver.clone(), 
+                loader_thread_sender.clone()
+            );
+            join_handles.push(join_handle);
+        }
+
 
         ParticleLoader {
             buffered_octant_loader,
             loaded_octants: VecMap::new(),
             loading_octants: BitSet::new(),
-            loader_thread_sender: sender_to,
+            main_thread_sender,
             initial_mesh,
-            main_tread_receiver: receiver_from,
-            loader_thread_join_handle: join_handle,
+            main_thread_receiver,
+            loader_threads_join_handles: join_handles,
         }
     }
 
@@ -316,8 +313,8 @@ impl ParticleLoader {
         pos: Vec3, 
         radius: f32,
     ) {
-        if self.loader_thread_join_handle.is_finished() {
-            panic!("Loaded thread stopped running!");
+        if self.loader_threads_join_handles.iter().any(|join_handle| join_handle.is_finished()) {
+            panic!("A loaded thread stopped running!");
         }
         let sphere = Sphere {
             center: pos.into(),
@@ -327,11 +324,11 @@ impl ParticleLoader {
         // println!("loading_octants: {:?}", self.loading_octants);
 
         // received particle data from loader thread and add it to bevy
-        for octant_data in self.main_tread_receiver.try_iter() {
+        for octant_data in self.main_thread_receiver.try_iter() {
             // print!("received octant with index: {}", octant_data.octant_index);
             // if the received octant isn't expected to be loaded, don't do anything
             if !self.loading_octants.contains(octant_data.octant_index) {
-                println!("");
+                // println!("");
                 continue;
             }
             self.loading_octants.remove(octant_data.octant_index);
@@ -370,7 +367,7 @@ impl ParticleLoader {
             };
             // println!("Loading new octant with index: {}", index);
             self.loading_octants.insert(index);
-            if let Err(error) = self.loader_thread_sender.try_send(octant_data) {
+            if let Err(error) = self.main_thread_sender.try_send(octant_data) {
                 panic!("Could not send octant load request to worker thread, reason: {}", error);
             }
         }
