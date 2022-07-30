@@ -8,7 +8,9 @@ use crate::chunk::util::GITP;
 
 #[derive(Debug)]
 struct MetadataFile {
+    #[allow(dead_code)]
     token: i32,
+    #[allow(dead_code)]
     version: i32,
     size: i32,
 }

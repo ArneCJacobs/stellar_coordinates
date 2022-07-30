@@ -1,5 +1,5 @@
 use crate::{Input, KeyCode, MouseButton, Res, ResMut, Windows};
-use smooth_bevy_cameras::{controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin}, LookTransformPlugin};
+use smooth_bevy_cameras::controllers::fps::FpsCameraController;
 use bevy::prelude::*;
 use  bevy_inspector_egui::bevy_egui::EguiContext;
 
