@@ -239,6 +239,7 @@ pub struct OctantData {
 
 pub struct ParticleLoader {
     buffered_octant_loader: BufferedOctantLoader,
+    loading_octants: BitSet,
     loaded_octants: VecMap<Entity>,
     initial_mesh: Handle<Mesh>,
     // sends octant id to the loader thread
@@ -295,11 +296,10 @@ impl ParticleLoader {
 
         }).unwrap();
 
-        // commands.insert_resource(StreamReceiver(receiver_from)); //TODO make system which receives this data
-
         ParticleLoader {
             buffered_octant_loader,
             loaded_octants: VecMap::new(),
+            loading_octants: BitSet::new(),
             loader_thread_sender: sender_to,
             initial_mesh,
             main_tread_receiver: receiver_from,
@@ -324,9 +324,18 @@ impl ParticleLoader {
             radius
 
         };
+        // println!("loading_octants: {:?}", self.loading_octants);
 
         // received particle data from loader thread and add it to bevy
         for octant_data in self.main_tread_receiver.try_iter() {
+            // print!("received octant with index: {}", octant_data.octant_index);
+            // if the received octant isn't expected to be loaded, don't do anything
+            if !self.loading_octants.contains(octant_data.octant_index) {
+                println!("");
+                continue;
+            }
+            self.loading_octants.remove(octant_data.octant_index);
+            // println!(", still loading octants: {:?}", self.loading_octants);
             let octant_opt = self.buffered_octant_loader.octree.octants.get(octant_data.octant_index);
             if let Some(instance_data) = octant_data.instance_data_opt {
                 let instance_buffer = InstanceBuffer {
@@ -345,6 +354,7 @@ impl ParticleLoader {
                 );
                 let entity_command = commands.spawn_bundle(chunk);
                 let entity = entity_command.id();
+
                 self.loaded_octants.insert(octant_data.octant_index, entity);
             }
         }
@@ -358,6 +368,8 @@ impl ParticleLoader {
                 octant_index: index,
                 instance_data_opt : None,
             };
+            // println!("Loading new octant with index: {}", index);
+            self.loading_octants.insert(index);
             if let Err(error) = self.loader_thread_sender.try_send(octant_data) {
                 panic!("Could not send octant load request to worker thread, reason: {}", error);
             }
@@ -365,10 +377,17 @@ impl ParticleLoader {
 
         // octants that need to be unloaded are removed from entities
         for (index, _octant) in unloaded_octants {
-            let values = self.loaded_octants.values().collect::<Vec<&Entity>>();
-            let error_msg = format!("octant with id: {} was not found, loaded octants: {:?}", index, values);
-            let entity = self.loaded_octants.remove(index).expect(error_msg.as_str());
-            commands.entity(entity).despawn();
+            // println!("Unloading octant with index: {}", index);
+            let error_msg = format!("octant with index: {} was not found", index);
+            if self.loaded_octants.contains_key(index) {
+                let entity = self.loaded_octants.remove(index).expect(error_msg.as_str());
+                commands.entity(entity).despawn();
+            } else if self.loading_octants.contains(index) {
+                self.loading_octants.remove(index);
+            } else {
+                panic!("Attemting to unload octant that was never loaded");
+            }
+
         }
 
     }
