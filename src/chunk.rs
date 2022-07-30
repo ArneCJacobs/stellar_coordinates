@@ -9,6 +9,7 @@ use bevy::render::primitives::Aabb;
 use bevy::prelude::*;
 use bevy::render::render_resource::{BufferInitDescriptor, BufferUsages};
 use bevy::render::renderer::RenderDevice;
+use itertools::Itertools;
 use serde::Deserialize;
 use serde_json;
 use bit_set::BitSet;
@@ -252,7 +253,7 @@ impl ParticleLoader {
                 let instance_data: Vec<InstanceData> = Particle::iter_from_reader(&mut particle_file.unwrap())
                     .map(|particle: Particle| {
                         let size = (particle.size.log2() / 14.0 - 1.0) * 1.8 + 1.0;
-                        println!("size: {}", size);
+                        // println!("size: {}", size);
                         let [r,g,b,a] = particle.color;
                         InstanceData {
                             position: Vec3::new(
@@ -362,6 +363,15 @@ impl ParticleLoader {
 
         // get which octant need to be loaded or unloaded
         let (new_octants, unloaded_octants) = self.buffered_octant_loader.load_octants(sphere);
+        // reorder octants so that those that are closer get loaded first
+        let new_octants: Vec<(usize, &Octant)> = new_octants.into_iter()
+            .map(|(octant_index, octant)| {
+                let mid = (octant.aabb.max() + octant.aabb.min()) / 2.0;
+                (octant_index, octant, mid.distance(pos.into()))
+            }).sorted_by(|(_, _, a), (_, _, b)| a.partial_cmp(b).unwrap())
+            .map(|(index, octant, _)| (index, octant))
+            .collect();
+
         // send octant that need to be loaded to loader thread
         for (index, octant) in new_octants {
             let octant_data = OctantData {
