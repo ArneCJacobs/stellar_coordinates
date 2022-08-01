@@ -46,7 +46,7 @@ fn main() {
         })
         // .add_system(draw_bounding_box_system)
         .add_system(catalog_system)
-        .add_system(lod_system.after(catalog_system))
+        // .add_system(lod_system.after(catalog_system))
         .add_startup_system(setup)
         .run();
 }
@@ -67,12 +67,12 @@ struct Player();
 fn catalog_system(
     mut commands: Commands,
     render_device: Res<RenderDevice>,
-    mut player_query: Query<&mut Transform, With<Player>>,
+    player_query: Query<&Transform, With<Player>>,
     mut catalog: ResMut<Catalog>,
     view_radius: Res<ViewRadiusResource>,
     mut octant_map: ResMut<OctantMap>,
     ) {
-    let player_transform = player_query.get_single_mut().unwrap();
+    let player_transform = player_query.get_single().unwrap();
     catalog.particle_loader.update_chunks(
         &mut commands, 
         render_device, 
@@ -91,7 +91,7 @@ struct LODdata{
 }
 
 // maps an octant index to it's corresponding entity
-struct OctantMap(VecMap<Entity>);
+pub struct OctantMap(VecMap<Entity>);
 
 fn lod_system(
     mut commands: Commands,
