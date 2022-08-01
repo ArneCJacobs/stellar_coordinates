@@ -256,7 +256,10 @@ impl ParticleLoader {
                     .map(|particle: Particle| {
                         let size = (particle.size.log2() / 14.0 - 1.0) * 1.8 + 0.7;
                         // println!("size: {}", size);
-                        let [r,g,b,a] = particle.color;
+                        let [mut r,mut g,mut b,a] = particle.color;
+                        if r < 5 && g < 5 && b < 5 {
+                            [r, g, b] = [255, 255, 255];
+                        }
                         InstanceData {
                             position: Vec3::new(
                                 particle.x as f32,

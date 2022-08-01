@@ -7,7 +7,7 @@ use bevy::{
 #[allow(unused_imports)]
 use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_prototype_debug_lines::*;
-use chunk::{BufferedOctantLoader, octant::Octant};
+use chunk::BufferedOctantLoader;
 use smooth_bevy_cameras::{
     controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin},
     LookTransformPlugin,
@@ -25,7 +25,7 @@ mod util;
 fn main() {
     App::new()
         .insert_resource(WindowDescriptor {
-            present_mode: PresentMode::Immediate,
+            present_mode: PresentMode::Mailbox,
             ..Default::default()
         })
         .add_plugins(DefaultPlugins)
@@ -46,7 +46,7 @@ fn main() {
         })
         // .add_system(draw_bounding_box_system)
         .add_system(catalog_system)
-        // .add_system(lod_system.after(catalog_system))
+        .add_system(lod_system.after(catalog_system))
         .add_startup_system(setup)
         .run();
 }
@@ -136,14 +136,15 @@ fn setup(
     render_device: Res<RenderDevice>,
 ) {
     let mut octant_map = OctantMap(VecMap::new());
+    let radius = 0.1f32;
     let ico_sphere = meshes.add(Mesh::from(shape::Icosphere {
-        radius: 0.1f32,
+        radius,
         subdivisions: 0,
     }));
 
     let ico_sphere_close = meshes.add(Mesh::from(shape::Icosphere {
-        radius: 0.1f32,
-        subdivisions: 4,
+        radius,
+        subdivisions: 1,
     }));
 
     let view_radius = ViewRadiusResource{ radius: 200.0 };
@@ -160,7 +161,7 @@ fn setup(
 
     let lod_data: LODdata = LODdata { 
         buffered_octant_loader: lod_buffered_octant_loader, 
-        lod_radius: 4.0, 
+        lod_radius: 1.0, 
         mesh_close: ico_sphere_close, 
         mesh_far: ico_sphere.clone() 
     };
@@ -180,11 +181,11 @@ fn setup(
     };
     commands
         .spawn_bundle(PerspectiveCameraBundle::default())
-        .insert(Player())
+        .insert(Player()) // mark the camera as the main player
         .insert_bundle(FpsCameraBundle::new(
             controller,
             PerspectiveCameraBundle::default(),
             Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(1., 0., 0.),
+            Vec3::new(1., 0., 1.),
         ));
 }
