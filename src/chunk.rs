@@ -3,10 +3,11 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::thread::JoinHandle;
+use bevy::prelude::*;
 use bevy::math::Vec3;
 use bevy::ecs::bundle::Bundle;
 use bevy::render::primitives::Aabb;
-use bevy::prelude::*;
+use bevy::render::primitives::Sphere;
 use bevy::render::render_resource::{BufferInitDescriptor, BufferUsages};
 use bevy::render::renderer::RenderDevice;
 use itertools::Itertools;
@@ -21,12 +22,13 @@ pub mod particle;
 pub mod util;
 
 
+use crate::OctantMap;
 use crate::chunk::octant::Octant;
 use crate::chunk::octant::OCTANT_CHILDREN_COUNT;
 use crate::chunk::particle::Particle;
 use crate::gpu_instancing::{InstanceBuffer, InstanceData};
-use bevy::render::primitives::Sphere;
 
+#[derive(Clone)]
 pub struct OcTree {
     octants: Vec<Octant>,
     root_index: usize,
@@ -123,13 +125,13 @@ impl Chunk {
 }
 
 pub struct BufferedOctantLoader {
-    octree: OcTree,
+    pub octree: OcTree,
     loaded_octants: BitSet,
     new_octants: BitSet,
 }
 
 impl BufferedOctantLoader {
-    fn new(octree: OcTree) -> Self {
+    pub fn new(octree: OcTree) -> Self {
         BufferedOctantLoader {
             octree,
             loaded_octants: BitSet::new(),
@@ -139,7 +141,7 @@ impl BufferedOctantLoader {
 
     // sphere contains the position and the view radius, and will be used for collision with the
     // aabb in the octree
-    fn load_octants(&mut self, sphere: Sphere) -> (Vec<(usize,&Octant)>, Vec<(usize,&Octant)>) {
+    pub fn load_octants(&mut self, sphere: Sphere) -> (Vec<(usize,&Octant)>, Vec<(usize,&Octant)>) {
         let mut new_octants = vec![];
         let mut unloaded_octants = vec![];
         self.new_octants.clear();
@@ -228,7 +230,7 @@ pub struct OctantData {
 }
 
 pub struct ParticleLoader {
-    buffered_octant_loader: BufferedOctantLoader,
+    pub buffered_octant_loader: BufferedOctantLoader,
     loading_octants: VecMap<Entity>,
     loaded_octants: VecMap<Entity>,
     initial_mesh: Handle<Mesh>,
@@ -317,6 +319,7 @@ impl ParticleLoader {
         render_device: Res<RenderDevice>, 
         pos: Vec3, 
         radius: f32,
+        octant_map: &mut OctantMap
     ) {
         if self.loader_threads_join_handles.iter().any(|join_handle| join_handle.is_finished()) {
             panic!("A loader thread stopped running!");
@@ -339,7 +342,6 @@ impl ParticleLoader {
             let chunk_entity = self.loading_octants.remove(octant_data.octant_index)
                 .expect("While loading instance data, corresponding chunk entity was not found");
             // println!(", still loading octants: {:?}", self.loading_octants);
-            let octant_opt = self.buffered_octant_loader.octree.octants.get(octant_data.octant_index);
             if let Some(instance_data) = octant_data.instance_data_opt {
                 let instance_buffer = InstanceBuffer {
                     buffer: render_device.create_buffer_with_data(&BufferInitDescriptor{
@@ -377,7 +379,10 @@ impl ParticleLoader {
                 // instance_buffer,
             );
             let entity_command = commands.spawn_bundle(chunk);
+
+
             let chunk_entity = entity_command.id();
+            octant_map.0.insert(index, chunk_entity);
 
             let octant_data = OctantData {
                 octant_id: octant.octant_id,
@@ -393,6 +398,7 @@ impl ParticleLoader {
 
         // octants that need to be unloaded are removed from entities
         for (index, _octant) in unloaded_octants {
+            octant_map.0.remove(index);
             // println!("Unloading octant with index: {}", index);
             let error_msg = format!("octant with index: {} was not found", index);
             if self.loaded_octants.contains_key(index) {

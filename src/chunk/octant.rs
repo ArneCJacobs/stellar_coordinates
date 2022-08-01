@@ -39,7 +39,7 @@ impl MetadataFile {
 
 
 pub const OCTANT_CHILDREN_COUNT: usize = 8;
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Octant {
     pub octant_id: usize,
     pub aabb: Aabb,
