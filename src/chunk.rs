@@ -100,7 +100,7 @@ pub struct OctantId(usize);
 pub struct Chunk {
     pub octant_id: OctantId,
     pub aabb: Aabb,
-    pub instance_buffer: InstanceBuffer,
+    // pub instance_buffer: Option<InstanceBuffer>,
     #[bundle]
     pub transform_bundle: TransformBundle,
     pub mesh: Handle<Mesh>,
@@ -109,11 +109,11 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    pub fn new(octant_id: usize, aabb: Aabb, mesh: Handle<Mesh>, instance_buffer: InstanceBuffer) -> Self {
+    pub fn new(octant_id: usize, aabb: Aabb, mesh: Handle<Mesh>) -> Self {
         Chunk {
             octant_id: OctantId(octant_id),
             aabb,
-            instance_buffer,
+            // instance_buffer,
             transform_bundle: TransformBundle::identity(),
             mesh,
             visibility: Visibility { is_visible: true },
@@ -229,7 +229,7 @@ pub struct OctantData {
 
 pub struct ParticleLoader {
     buffered_octant_loader: BufferedOctantLoader,
-    loading_octants: BitSet,
+    loading_octants: VecMap<Entity>,
     loaded_octants: VecMap<Entity>,
     initial_mesh: Handle<Mesh>,
     // sends octant id to the loader thread
@@ -252,7 +252,7 @@ impl ParticleLoader {
                 }
                 let instance_data: Vec<InstanceData> = Particle::iter_from_reader(&mut particle_file.unwrap())
                     .map(|particle: Particle| {
-                        let size = (particle.size.log2() / 14.0 - 1.0) * 1.8 + 1.0;
+                        let size = (particle.size.log2() / 14.0 - 1.0) * 1.8 + 0.7;
                         // println!("size: {}", size);
                         let [r,g,b,a] = particle.color;
                         InstanceData {
@@ -301,7 +301,7 @@ impl ParticleLoader {
         ParticleLoader {
             buffered_octant_loader,
             loaded_octants: VecMap::new(),
-            loading_octants: BitSet::new(),
+            loading_octants: VecMap::new(),
             main_thread_sender,
             initial_mesh,
             main_thread_receiver,
@@ -319,7 +319,7 @@ impl ParticleLoader {
         radius: f32,
     ) {
         if self.loader_threads_join_handles.iter().any(|join_handle| join_handle.is_finished()) {
-            panic!("A loaded thread stopped running!");
+            panic!("A loader thread stopped running!");
         }
         let sphere = Sphere {
             center: pos.into(),
@@ -332,11 +332,12 @@ impl ParticleLoader {
         for octant_data in self.main_thread_receiver.try_iter() {
             // print!("received octant with index: {}", octant_data.octant_index);
             // if the received octant isn't expected to be loaded, don't do anything
-            if !self.loading_octants.contains(octant_data.octant_index) {
+            if !self.loading_octants.contains_key(octant_data.octant_index) {
                 // println!("");
                 continue;
             }
-            self.loading_octants.remove(octant_data.octant_index);
+            let chunk_entity = self.loading_octants.remove(octant_data.octant_index)
+                .expect("While loading instance data, corresponding chunk entity was not found");
             // println!(", still loading octants: {:?}", self.loading_octants);
             let octant_opt = self.buffered_octant_loader.octree.octants.get(octant_data.octant_index);
             if let Some(instance_data) = octant_data.instance_data_opt {
@@ -348,16 +349,10 @@ impl ParticleLoader {
                     }),
                     length: instance_data.len(),
                 };
-                let chunk = Chunk::new(
-                    octant_data.octant_id,
-                    octant_opt.unwrap().aabb.clone(),
-                    self.initial_mesh.clone(),
-                    instance_buffer,
-                );
-                let entity_command = commands.spawn_bundle(chunk);
-                let entity = entity_command.id();
+                commands.entity(chunk_entity)
+                    .insert(instance_buffer);
 
-                self.loaded_octants.insert(octant_data.octant_index, entity);
+                self.loaded_octants.insert(octant_data.octant_index, chunk_entity);
             }
         }
 
@@ -374,13 +369,23 @@ impl ParticleLoader {
 
         // send octant that need to be loaded to loader thread
         for (index, octant) in new_octants {
+
+            let chunk = Chunk::new(
+                octant.octant_id,
+                octant.aabb.clone(),
+                self.initial_mesh.clone(),
+                // instance_buffer,
+            );
+            let entity_command = commands.spawn_bundle(chunk);
+            let chunk_entity = entity_command.id();
+
             let octant_data = OctantData {
                 octant_id: octant.octant_id,
                 octant_index: index,
-                instance_data_opt : None,
+                instance_data_opt: None,
             };
             // println!("Loading new octant with index: {}", index);
-            self.loading_octants.insert(index);
+            self.loading_octants.insert(index, chunk_entity);
             if let Err(error) = self.main_thread_sender.try_send(octant_data) {
                 panic!("Could not send octant load request to worker thread, reason: {}", error);
             }
@@ -393,7 +398,7 @@ impl ParticleLoader {
             if self.loaded_octants.contains_key(index) {
                 let entity = self.loaded_octants.remove(index).expect(error_msg.as_str());
                 commands.entity(entity).despawn();
-            } else if self.loading_octants.contains(index) {
+            } else if self.loading_octants.contains_key(index) {
                 self.loading_octants.remove(index);
             } else {
                 panic!("Attemting to unload octant that was never loaded");

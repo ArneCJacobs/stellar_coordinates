@@ -4,6 +4,7 @@ use bevy::{
     render::{primitives::Aabb, renderer::RenderDevice}, window::PresentMode,
 };
 
+#[allow(unused_imports)]
 use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_prototype_debug_lines::*;
 use smooth_bevy_cameras::{
@@ -26,7 +27,7 @@ fn main() {
             ..Default::default()
         })
         .add_plugins(DefaultPlugins)
-        .add_plugin(WorldInspectorPlugin::new()) // in game inspector
+        // .add_plugin(WorldInspectorPlugin::new()) // in game inspector
         .add_plugin(CustomMaterialPlugin) // for GPU instancing
         .add_plugin(LookTransformPlugin)
         .add_plugin(FpsCameraPlugin::default())
@@ -35,7 +36,7 @@ fn main() {
         .add_plugin(LogDiagnosticsPlugin::filtered(vec![
             // FrameTimeDiagnosticsPlugin::FPS,
         ]))
-        .add_plugin(DebugLinesPlugin::default())
+        // .add_plugin(DebugLinesPlugin::default())
         .insert_resource(WindowDescriptor {
             // uncomment for unthrottled FPS
             present_mode: PresentMode::Immediate,
