@@ -108,6 +108,7 @@ pub struct Chunk {
     pub mesh: Handle<Mesh>,
     pub visibility: Visibility,
     pub computed_visibility: ComputedVisibility,
+
 }
 
 impl Chunk {

@@ -8,6 +8,7 @@ use bevy::{
 use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_prototype_debug_lines::*;
 use chunk::BufferedOctantLoader;
+use gpu_instancing::InstanceData;
 use smooth_bevy_cameras::{
     controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin},
     LookTransformPlugin,
@@ -36,7 +37,7 @@ fn main() {
         .add_system(cursor::cursor_grab_system)
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(LogDiagnosticsPlugin::filtered(vec![
-            // FrameTimeDiagnosticsPlugin::FPS,
+            FrameTimeDiagnosticsPlugin::FPS,
         ]))
         // .add_plugin(DebugLinesPlugin::default())
         .insert_resource(WindowDescriptor {
@@ -120,9 +121,6 @@ fn lod_system(
         commands.entity(*entity_id)
             .insert(mesh_far.clone());
     }
-
-
-
 }
 
 #[derive(Clone, Copy)]
@@ -144,10 +142,10 @@ fn setup(
 
     let ico_sphere_close = meshes.add(Mesh::from(shape::Icosphere {
         radius,
-        subdivisions: 1,
+        subdivisions: 0,
     }));
 
-    let view_radius = ViewRadiusResource{ radius: 200.0 };
+    let view_radius = ViewRadiusResource{ radius: 300.0 };
     commands.insert_resource(view_radius);
     let mut catalog = Catalog::new(
         "catalog_gaia_dr3_extralarge".to_string(),
