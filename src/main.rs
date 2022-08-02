@@ -15,8 +15,11 @@ use smooth_bevy_cameras::{
 };
 use vec_map::VecMap;
 
+use bevy_egui::{egui, EguiContext, EguiPlugin};
+
 use crate::chunk::Catalog;
 use crate::gpu_instancing::CustomMaterialPlugin;
+
 
 mod chunk;
 mod cursor;
@@ -30,6 +33,7 @@ fn main() {
             ..Default::default()
         })
         .add_plugins(DefaultPlugins)
+        .add_plugin(EguiPlugin)
         // .add_plugin(WorldInspectorPlugin::new()) // in game inspector
         .add_plugin(CustomMaterialPlugin) // for GPU instancing
         .add_plugin(LookTransformPlugin)
@@ -48,8 +52,23 @@ fn main() {
         // .add_system(draw_bounding_box_system)
         .add_system(catalog_system)
         .add_system(lod_system.after(catalog_system))
+        .add_system(egui_system)
         .add_startup_system(setup)
         .run();
+}
+
+fn egui_system(
+    mut egui_context: ResMut<EguiContext>,
+    player_query: Query<&Transform, With<Player>>,
+    mut view_radius: ResMut<ViewRadiusResource>,
+) {
+    let pos = player_query.get_single().unwrap().translation;
+    egui::Window::new("Hello").show(egui_context.ctx_mut(), |ui| {
+        ui.heading("Options");
+        ui.add(egui::Slider::new(&mut view_radius.radius, 1.0..=500.0).text("View raduis"));
+        ui.heading("Information");
+        ui.label(format!("x: {:.2}, y: {:.2}, z: {:.2}", pos.x, pos.y, pos.z));
+    });
 }
 
 #[allow(dead_code)]
@@ -145,10 +164,10 @@ fn setup(
         subdivisions: 0,
     }));
 
-    let view_radius = ViewRadiusResource{ radius: 300.0 };
+    let view_radius = ViewRadiusResource{ radius: 50.0 };
     commands.insert_resource(view_radius);
     let mut catalog = Catalog::new(
-        "catalog_gaia_dr3_extralarge".to_string(),
+        "catalog_gaia_dr3_small".to_string(),
         ico_sphere.clone(),
     );
     catalog.particle_loader.update_chunks(&mut commands, render_device, Vec3::ZERO, view_radius.radius, &mut octant_map);
