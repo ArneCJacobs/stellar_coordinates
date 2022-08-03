@@ -79,7 +79,7 @@ fn egui_system(
     right_ascension = (right_ascension + 2.0 * PI) % (2.0 * PI);
     egui::Window::new("Hello").show(egui_context.ctx_mut(), |ui| {
         ui.heading("Options");
-        ui.add(egui::Slider::new(&mut view_radius.radius, 1.0..=500.0).text("View raduis"));
+        ui.add(egui::Slider::new(&mut view_radius.radius, 1.0..=600.0).text("View raduis"));
         ui.heading("Information");
         pos /= DATA_SCALE as f32; // convert x, y, z to parsecs 
         ui.label(format!("x: {:.2}, y: {:.2}, z: {:.2}", pos.x , pos.y, pos.z));

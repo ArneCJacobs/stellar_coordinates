@@ -1,7 +1,7 @@
 use crate::{Input, KeyCode, MouseButton, Res, ResMut, Windows};
 use smooth_bevy_cameras::controllers::fps::FpsCameraController;
 use bevy::prelude::*;
-use  bevy_inspector_egui::bevy_egui::EguiContext;
+use bevy_inspector_egui::bevy_egui::EguiContext;
 
 // hides mouse
 pub fn cursor_grab_system(
@@ -9,7 +9,8 @@ pub fn cursor_grab_system(
     btn: Res<Input<MouseButton>>,
     key: Res<Input<KeyCode>>,
     mut camera_controller_query: Query<&mut FpsCameraController>,
-    egui_context_opt: Option<ResMut<EguiContext>>,
+    egui_context_opt: Option<ResMut<EguiContext>>, // egui context added by bevy_inspector_egui
+    egui_context2_opt: Option<ResMut<bevy_egui::EguiContext>>, // egui context added by bevy_egui
 ) {
     let window = windows.get_primary_mut().unwrap();
 
@@ -17,7 +18,10 @@ pub fn cursor_grab_system(
 
     let hovering_over_egui = match egui_context_opt {
         Some(mut egui_context) => egui_context.ctx_mut().is_pointer_over_area(),
-        None => false
+        None => match egui_context2_opt {
+            Some(mut egui_context) => egui_context.ctx_mut().is_pointer_over_area(),
+            None => false
+        }
     };
 
     if btn.just_pressed(MouseButton::Left) && !hovering_over_egui {
