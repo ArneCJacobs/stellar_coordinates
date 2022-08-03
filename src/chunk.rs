@@ -172,18 +172,31 @@ pub struct Catalog {
 }
 
 
-const CATALOGS_DIR: &'static str = "./data/catalogs/";
+// const CATALOGS_DIR: &'static str = "./data/catalogs/";
 
 impl Catalog {
     pub fn new(
         name: String, 
         initial_mesh: Handle<Mesh>,
     ) -> Self {
-        let catalog_dir: PathBuf = [CATALOGS_DIR, name.as_str()].iter().collect();
+        let catalog_dir: PathBuf = [name.as_str()].iter().collect();
 
-        let name = name.replace("_", "-"); // who though this was a good naming convention
-        let mut catalog_description = catalog_dir.join(name);
-        catalog_description.set_extension("json");
+        // let name = name.replace("_", "-"); // who though this was a good naming convention
+        // let mut catalog_description = catalog_dir.files(name);
+        // catalog_description.set_extension("json");
+        let catalog_description = std::fs::read_dir(catalog_dir.clone())
+            .expect(&format!("Could not find/open catalog directory: {:?}", catalog_dir.clone()).as_str())
+            .into_iter()
+            .filter_map(|path| path.ok())
+            .map(|path| path.path())
+            .filter(|path_buf| match path_buf.extension() {
+                None => false,
+                Some(extention) => extention.to_str().unwrap() == "json" 
+            })
+            .next()
+            .expect("Could not find description file");
+        println!("{:?}", catalog_description);
+            
 
         let catalog_description_file = File::open(catalog_description.clone()).expect(&format!("Could not find/open catalog, {}", catalog_description.to_str().unwrap()).to_string());
         let catalog_data: CatalogData = serde_json::from_reader(catalog_description_file).unwrap();
@@ -325,7 +338,8 @@ impl ParticleLoader {
         render_device: Res<RenderDevice>, 
         pos: Vec3, 
         radius: f32,
-        octant_map: &mut OctantMap
+        octant_map: &mut OctantMap,
+        star_count: &mut u64,
     ) {
         if self.loader_threads_join_handles.iter().any(|join_handle| join_handle.is_finished()) {
             panic!("A loader thread stopped running!");
@@ -345,6 +359,9 @@ impl ParticleLoader {
                 // println!("");
                 continue;
             }
+
+            let octant = self.buffered_octant_loader.octree.octants.get(octant_data.octant_index).unwrap();
+            *star_count += octant.star_count as u64;
             let chunk_entity = self.loading_octants.remove(octant_data.octant_index)
                 .expect("While loading instance data, corresponding chunk entity was not found");
             // println!(", still loading octants: {:?}", self.loading_octants);
@@ -377,7 +394,6 @@ impl ParticleLoader {
 
         // send octant that need to be loaded to loader thread
         for (index, octant) in new_octants {
-
             let chunk = Chunk::new(
                 octant.octant_id,
                 octant.aabb.clone(),
@@ -403,13 +419,15 @@ impl ParticleLoader {
         }
 
         // octants that need to be unloaded are removed from entities
-        for (index, _octant) in unloaded_octants {
+        for (index, octant) in unloaded_octants {
             octant_map.0.remove(index);
             // println!("Unloading octant with index: {}", index);
             let error_msg = format!("octant with index: {} was not found", index);
             if self.loaded_octants.contains_key(index) {
                 let entity = self.loaded_octants.remove(index).expect(error_msg.as_str());
                 commands.entity(entity).despawn();
+                *star_count -= octant.star_count as u64;
+
             } else if self.loading_octants.contains_key(index) {
                 self.loading_octants.remove(index);
             } else {

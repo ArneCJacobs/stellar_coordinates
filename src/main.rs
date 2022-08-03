@@ -12,6 +12,7 @@ use bevy::{
 use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_prototype_debug_lines::*;
 use chunk::{BufferedOctantLoader, util::{DATA_SCALE, PARSEC, LIGHT_YEAR, ASTRONOMICAL_UNIT}};
+use itertools::Itertools;
 use smooth_bevy_cameras::{
     controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin},
     LookTransformPlugin,
@@ -68,11 +69,24 @@ fn to_hour_minute_seconds(radians: f32) -> [f32; 3] {
     let seconds = remaider / RADIAN_TO_SECONDS;
     return [hours, minutes, seconds];
 }
+fn pretty_int(i: u64) -> String {
+    let mut s = String::new();
+    let i_str = i.to_string();
+    let a = i_str.chars().rev().enumerate();
+    for (idx, val) in a {
+        if idx != 0 && idx % 3 == 0 {
+            s.insert(0, ',');
+        }
+        s.insert(0, val);
+    }
+    return s;
+}
 
 fn egui_system(
     mut egui_context: ResMut<EguiContext>,
     player_query: Query<&Transform, With<Player>>,
     mut view_radius: ResMut<ViewRadiusResource>,
+    star_count: Res<StarCount>,
 ) {
     let mut pos: Vec3 = player_query.get_single().unwrap().translation;
     let radius = pos.length();
@@ -81,7 +95,7 @@ fn egui_system(
     right_ascension = (right_ascension + 2.0 * PI) % (2.0 * PI);
     egui::Window::new("").show(egui_context.ctx_mut(), |ui| {
         ui.heading("Options");
-        ui.add(egui::Slider::new(&mut view_radius.radius, 1.0..=600.0).text("View raduis"));
+        ui.add(egui::Slider::new(&mut view_radius.radius, 1.0..=1000.0).text("View raduis"));
         ui.heading("Information");
         pos /= DATA_SCALE as f32; // convert x, y, z to parsecs 
         ui.label(format!("x: {:.2}, y: {:.2}, z: {:.2}", pos.x , pos.y, pos.z));
@@ -94,6 +108,8 @@ fn egui_system(
         let light_years = parsecs * (PARSEC / LIGHT_YEAR);
         let astronomical_units = parsecs * (PARSEC / ASTRONOMICAL_UNIT);
         ui.label(format!("Distance: {:.2e} ly, {:.2e} pc, {:.2e} AU,", light_years, parsecs, astronomical_units));
+
+        ui.label(format!("Loaded star count: {}", pretty_int(star_count.0)));
     });
 }
 
@@ -118,6 +134,7 @@ fn catalog_system(
     mut catalog: ResMut<Catalog>,
     view_radius: Res<ViewRadiusResource>,
     mut octant_map: ResMut<OctantMap>,
+    mut star_count: ResMut<StarCount>,
     ) {
     let player_transform = player_query.get_single().unwrap();
     catalog.particle_loader.update_chunks(
@@ -125,7 +142,8 @@ fn catalog_system(
         render_device, 
         player_transform.translation, 
         view_radius.radius,
-        &mut octant_map
+        &mut octant_map,
+        &mut star_count.0,
     );
      
 }
@@ -174,6 +192,8 @@ struct ViewRadiusResource {
     radius: f32,
 }
 
+struct StarCount(u64);
+
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -191,13 +211,16 @@ fn setup(
         subdivisions: 0,
     }));
 
+    let args = std::env::args().collect_vec();
+    let catalog_name = args.get(1).expect("Catalog name cannot be empty");
     let view_radius = ViewRadiusResource{ radius: 50.0 };
     commands.insert_resource(view_radius);
     let mut catalog = Catalog::new(
-        "catalog_gaia_dr3_extralarge".to_string(), //TODO parse from input 
+        catalog_name.to_string(),
         ico_sphere.clone(),
     );
-    catalog.particle_loader.update_chunks(&mut commands, render_device, Vec3::ZERO, view_radius.radius, &mut octant_map);
+    let mut star_count = 0;
+    catalog.particle_loader.update_chunks(&mut commands, render_device, Vec3::ZERO, view_radius.radius, &mut octant_map, &mut star_count);
 
     let lod_buffered_octant_loader = BufferedOctantLoader::new(
         catalog.particle_loader.buffered_octant_loader.octree.clone()
@@ -213,6 +236,7 @@ fn setup(
     commands.insert_resource(catalog);
     commands.insert_resource(lod_data);
     commands.insert_resource(octant_map);
+    commands.insert_resource(StarCount(star_count));
 
 
 
