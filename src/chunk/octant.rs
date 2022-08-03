@@ -1,10 +1,8 @@
 use byteorder::{ReadBytesExt, BigEndian};
-use std::{
-    io::{self, Read},
-};
+use std::io::{self, Read};
 use bevy::render::primitives::Aabb;
+use crate::chunk::util::GITPS;
 
-use crate::chunk::util::GITP;
 
 #[derive(Debug)]
 struct MetadataFile {
@@ -59,13 +57,13 @@ impl Octant {
 
     fn from_reader(reader: &mut impl Read) -> io::Result<Self> {
         let octant_id = reader.read_i64::<BigEndian>()?;
-        let x = reader.read_f32::<BigEndian>()? * (GITP as f32);
-        let y = reader.read_f32::<BigEndian>()? * (GITP as f32);
-        let z = reader.read_f32::<BigEndian>()? * (GITP as f32);
+        let x = reader.read_f32::<BigEndian>()? * (GITPS as f32);
+        let y = reader.read_f32::<BigEndian>()? * (GITPS as f32);
+        let z = reader.read_f32::<BigEndian>()? * (GITPS as f32);
 
-        let dx = (reader.read_f32::<BigEndian>()? / 2.0) * (GITP as f32);
-        let dy = (reader.read_f32::<BigEndian>()? / 2.0)  * (GITP as f32);
-        let dz = (reader.read_f32::<BigEndian>()?) / 2.0 * (GITP as f32);
+        let dx = (reader.read_f32::<BigEndian>()? / 2.0) * (GITPS as f32);
+        let dy = (reader.read_f32::<BigEndian>()? / 2.0)  * (GITPS as f32);
+        let dz = (reader.read_f32::<BigEndian>()?) / 2.0 * (GITPS as f32);
 
         let mut children = [0; OCTANT_CHILDREN_COUNT];
         for i in 0..OCTANT_CHILDREN_COUNT {

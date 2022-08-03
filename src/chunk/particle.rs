@@ -1,6 +1,8 @@
 use byteorder::{ReadBytesExt, BigEndian};
 use std::io::{self, Read};
-use crate::chunk::util::GITP;
+use crate::chunk::util::GITPS;
+
+use super::util::gaiasky_to_cartesian;
 
 // https://gaia.ari.uni-heidelberg.de/gaiasky/docs/master/Data-streaming.html#version-2
 
@@ -65,13 +67,15 @@ impl Particle {
     }
 
     fn from_reader(reader: &mut impl Read) -> io::Result<Self> {
-        let x = reader.read_f64::<BigEndian>()? * GITP;
-        let y = reader.read_f64::<BigEndian>()? * GITP;
-        let z = reader.read_f64::<BigEndian>()? * GITP;
+        let x = reader.read_f64::<BigEndian>()? * GITPS;
+        let y = reader.read_f64::<BigEndian>()? * GITPS;
+        let z = reader.read_f64::<BigEndian>()? * GITPS;
+        // [x, y, z] = gaiasky_to_cartesian::<f64, [f64; 3], [f64; 3]>([x, y, z]);
 
-        let vx = reader.read_f32::<BigEndian>()? * (GITP as f32);
-        let vy = reader.read_f32::<BigEndian>()? * (GITP as f32);
-        let vz = reader.read_f32::<BigEndian>()? * (GITP as f32);
+        let vx = reader.read_f32::<BigEndian>()? * (GITPS as f32);
+        let vy = reader.read_f32::<BigEndian>()? * (GITPS as f32);
+        let vz = reader.read_f32::<BigEndian>()? * (GITPS as f32);
+        // [vx, vy, vz] = gaiasky_to_cartesian::<f32, [f32; 3], [f32; 3]>([vx, vy, vz]);
 
         let mu_alpha = reader.read_f32::<BigEndian>()?;
         let mu_delta = reader.read_f32::<BigEndian>()?;

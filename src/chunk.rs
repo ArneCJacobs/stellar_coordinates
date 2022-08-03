@@ -242,6 +242,8 @@ pub struct ParticleLoader {
     loader_threads_join_handles: Vec<JoinHandle<()>>,
 }
 
+
+
 impl ParticleLoader {
     fn spawn_thread(name: String, particles_dir_path: PathBuf, receiver_to: Receiver<OctantData>, sender_from: Sender<OctantData>) -> JoinHandle<()> {
         std::thread::Builder::new().name(name).spawn(move || {

@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     prelude::*,
@@ -7,7 +9,7 @@ use bevy::{
 #[allow(unused_imports)]
 use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_prototype_debug_lines::*;
-use chunk::BufferedOctantLoader;
+use chunk::{BufferedOctantLoader, util::{DATA_SCALE, PARSEC, LIGHT_YEAR, ASTRONOMICAL_UNIT}};
 use gpu_instancing::InstanceData;
 use smooth_bevy_cameras::{
     controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin},
@@ -44,11 +46,6 @@ fn main() {
             FrameTimeDiagnosticsPlugin::FPS,
         ]))
         // .add_plugin(DebugLinesPlugin::default())
-        .insert_resource(WindowDescriptor {
-            // uncomment for unthrottled FPS
-            present_mode: PresentMode::Immediate,
-            ..default()
-        })
         // .add_system(draw_bounding_box_system)
         .add_system(catalog_system)
         .add_system(lod_system.after(catalog_system))
@@ -57,17 +54,44 @@ fn main() {
         .run();
 }
 
+const RADIAN_TO_HOURS: f32 = PI / 12.0;
+const RADIAN_TO_MINUTES: f32 = PI / 720.0;
+const RADIAN_TO_SECONDS: f32 = PI / 43_200.0;
+
+fn to_hour_minute_seconds(radians: f32) -> [f32; 3] {
+    let hours = (radians / RADIAN_TO_HOURS).floor();
+    let mut remaider = radians % RADIAN_TO_HOURS;
+    let minutes = (remaider / RADIAN_TO_MINUTES).floor();
+    remaider = remaider % RADIAN_TO_MINUTES;
+    let seconds = remaider / RADIAN_TO_SECONDS;
+    return [hours, minutes, seconds];
+}
+
 fn egui_system(
     mut egui_context: ResMut<EguiContext>,
     player_query: Query<&Transform, With<Player>>,
     mut view_radius: ResMut<ViewRadiusResource>,
 ) {
-    let pos = player_query.get_single().unwrap().translation;
+    let mut pos: Vec3 = player_query.get_single().unwrap().translation;
+    let radius = pos.length();
+    let declination = (pos.y / radius).asin().to_degrees();
+    let mut right_ascension = (pos.x / radius).atan2(pos.z / radius);
+    right_ascension = (right_ascension + 2.0 * PI) % (2.0 * PI);
     egui::Window::new("Hello").show(egui_context.ctx_mut(), |ui| {
         ui.heading("Options");
         ui.add(egui::Slider::new(&mut view_radius.radius, 1.0..=500.0).text("View raduis"));
         ui.heading("Information");
-        ui.label(format!("x: {:.2}, y: {:.2}, z: {:.2}", pos.x, pos.y, pos.z));
+        pos /= DATA_SCALE as f32; // convert x, y, z to parsecs 
+        ui.label(format!("x: {:.2}, y: {:.2}, z: {:.2}", pos.x , pos.y, pos.z));
+        ui.label(format!("δ (DEC): {:.3}°", declination));
+
+        let [hours, minutes, seconds] = to_hour_minute_seconds(right_ascension);
+        ui.label(format!("α (RA): {:.0}h, {:.0}m, {:.2}s", hours, minutes, seconds));
+
+        let parsecs = (radius as f64) / DATA_SCALE;
+        let light_years = parsecs * (PARSEC / LIGHT_YEAR);
+        let astronomical_units = parsecs * (PARSEC / ASTRONOMICAL_UNIT);
+        ui.label(format!("Distance: {:.2e} ly, {:.2e} pc, {:.2e} AU,", light_years, parsecs, astronomical_units));
     });
 }
 
@@ -79,7 +103,9 @@ fn draw_bounding_box_system(
     for aabb in query.iter() {
         util::draw_bounding_box(&mut lines, aabb);
     }
+    // let test: [f32; 3] = Vec3::Z.into();
 }
+
 
 #[derive(Component)]
 struct Player();
@@ -203,6 +229,6 @@ fn setup(
             controller,
             PerspectiveCameraBundle::default(),
             Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(1., 0., 1.),
+            Vec3::new(0.000, 0.001, 1.),
         ));
 }
