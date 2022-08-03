@@ -10,6 +10,7 @@ pub const DATA_SCALE: f64 = 1.0 / 10.0;
 pub const GAIASKY_INTERNAL_UNIT_TO_PARSEC_SCALED: f64 = GAIASKY_INTERNAL_UNIT * DATA_SCALE / PARSEC;
 pub const GITPS: f64 = GAIASKY_INTERNAL_UNIT_TO_PARSEC_SCALED;
 
+// https://gaia.ari.uni-heidelberg.de/gaiasky/docs/master/Internal-reference-system.html#reference-system
 #[allow(dead_code)]
 pub fn gaiasky_to_cartesian<T, A, B>(a: A) -> B
     where 

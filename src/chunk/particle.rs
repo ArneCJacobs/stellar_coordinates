@@ -2,10 +2,7 @@ use byteorder::{ReadBytesExt, BigEndian};
 use std::io::{self, Read};
 use crate::chunk::util::GITPS;
 
-use super::util::gaiasky_to_cartesian;
-
 // https://gaia.ari.uni-heidelberg.de/gaiasky/docs/master/Data-streaming.html#version-2
-
 fn rgba_from_float(float: f32) -> [u8; 4] {
     let [mut a, b, g, r] = float.to_be_bytes();
     a = ((a as f32) * 255./254.).floor() as u8;

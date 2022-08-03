@@ -1,7 +1,9 @@
 use std::f32::consts::PI;
 
+#[allow(unused_imports)]
+use bevy::diagnostic::LogDiagnosticsPlugin;
 use bevy::{
-    diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
+    diagnostic::FrameTimeDiagnosticsPlugin,
     prelude::*,
     render::{primitives::{Aabb, Sphere}, renderer::RenderDevice}, window::PresentMode,
 };
@@ -10,7 +12,6 @@ use bevy::{
 use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_prototype_debug_lines::*;
 use chunk::{BufferedOctantLoader, util::{DATA_SCALE, PARSEC, LIGHT_YEAR, ASTRONOMICAL_UNIT}};
-use gpu_instancing::InstanceData;
 use smooth_bevy_cameras::{
     controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin},
     LookTransformPlugin,
@@ -30,6 +31,7 @@ mod util;
 
 fn main() {
     App::new()
+        .insert_resource(ClearColor(Color::rgb(0.1, 0.1, 0.1)))
         .insert_resource(WindowDescriptor {
             present_mode: PresentMode::Mailbox,
             ..Default::default()
@@ -42,9 +44,9 @@ fn main() {
         .add_plugin(FpsCameraPlugin::default())
         .add_system(cursor::cursor_grab_system)
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .add_plugin(LogDiagnosticsPlugin::filtered(vec![
-            FrameTimeDiagnosticsPlugin::FPS,
-        ]))
+        // .add_plugin(LogDiagnosticsPlugin::filtered(vec![
+        //     FrameTimeDiagnosticsPlugin::FPS,
+        // ]))
         // .add_plugin(DebugLinesPlugin::default())
         // .add_system(draw_bounding_box_system)
         .add_system(catalog_system)
@@ -77,7 +79,7 @@ fn egui_system(
     let declination = (pos.y / radius).asin().to_degrees();
     let mut right_ascension = (pos.x / radius).atan2(pos.z / radius);
     right_ascension = (right_ascension + 2.0 * PI) % (2.0 * PI);
-    egui::Window::new("Hello").show(egui_context.ctx_mut(), |ui| {
+    egui::Window::new("").show(egui_context.ctx_mut(), |ui| {
         ui.heading("Options");
         ui.add(egui::Slider::new(&mut view_radius.radius, 1.0..=600.0).text("View raduis"));
         ui.heading("Information");
@@ -103,7 +105,6 @@ fn draw_bounding_box_system(
     for aabb in query.iter() {
         util::draw_bounding_box(&mut lines, aabb);
     }
-    // let test: [f32; 3] = Vec3::Z.into();
 }
 
 
@@ -193,7 +194,7 @@ fn setup(
     let view_radius = ViewRadiusResource{ radius: 50.0 };
     commands.insert_resource(view_radius);
     let mut catalog = Catalog::new(
-        "catalog_gaia_dr3_small".to_string(),
+        "catalog_gaia_dr3_extralarge".to_string(), //TODO parse from input 
         ico_sphere.clone(),
     );
     catalog.particle_loader.update_chunks(&mut commands, render_device, Vec3::ZERO, view_radius.radius, &mut octant_map);
