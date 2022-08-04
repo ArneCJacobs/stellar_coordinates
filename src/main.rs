@@ -82,12 +82,15 @@ fn pretty_int(i: u64) -> String {
     return s;
 }
 
+
 fn egui_system(
     mut egui_context: ResMut<EguiContext>,
     player_query: Query<&Transform, With<Player>>,
-    mut view_radius: ResMut<ViewRadiusResource>,
+    mut game_settings: ResMut<GameSettings>,
     star_count: Res<StarCount>,
+    mut fps_camera_controller_query: Query<&mut FpsCameraController>, 
 ) {
+    let mut controller = fps_camera_controller_query.get_single_mut().unwrap();
     let mut pos: Vec3 = player_query.get_single().unwrap().translation;
     let radius = pos.length();
     let declination = (pos.y / radius).asin().to_degrees();
@@ -95,7 +98,8 @@ fn egui_system(
     right_ascension = (right_ascension + 2.0 * PI) % (2.0 * PI);
     egui::Window::new("").show(egui_context.ctx_mut(), |ui| {
         ui.heading("Options");
-        ui.add(egui::Slider::new(&mut view_radius.radius, 1.0..=1000.0).text("View raduis"));
+        ui.add(egui::Slider::new(&mut game_settings.view_radius, 1.0..=1000.0).text("View raduis"));
+        ui.add(egui::Slider::new(&mut controller.translate_sensitivity, 0.01..=100.0).text("Speed"));
         ui.heading("Information");
         pos /= DATA_SCALE as f32; // convert x, y, z to parsecs 
         ui.label(format!("x: {:.2}, y: {:.2}, z: {:.2}", pos.x , pos.y, pos.z));
@@ -132,7 +136,7 @@ fn catalog_system(
     render_device: Res<RenderDevice>,
     player_query: Query<&Transform, With<Player>>,
     mut catalog: ResMut<Catalog>,
-    view_radius: Res<ViewRadiusResource>,
+    view_radius: Res<GameSettings>,
     mut octant_map: ResMut<OctantMap>,
     mut star_count: ResMut<StarCount>,
     ) {
@@ -141,7 +145,7 @@ fn catalog_system(
         &mut commands, 
         render_device, 
         player_transform.translation, 
-        view_radius.radius,
+        view_radius.view_radius,
         &mut octant_map,
         &mut star_count.0,
     );
@@ -188,8 +192,9 @@ fn lod_system(
 }
 
 #[derive(Clone, Copy)]
-struct ViewRadiusResource {
-    radius: f32,
+struct GameSettings {
+    view_radius: f32,
+    camera_speed: f32,
 }
 
 struct StarCount(u64);
@@ -213,14 +218,17 @@ fn setup(
 
     let args = std::env::args().collect_vec();
     let catalog_name = args.get(1).expect("Catalog name cannot be empty");
-    let view_radius = ViewRadiusResource{ radius: 50.0 };
-    commands.insert_resource(view_radius);
+    let game_settings = GameSettings{ 
+        view_radius: 50.0, 
+        camera_speed: 0.1 
+    };
+    commands.insert_resource(game_settings);
     let mut catalog = Catalog::new(
         catalog_name.to_string(),
         ico_sphere.clone(),
     );
     let mut star_count = 0;
-    catalog.particle_loader.update_chunks(&mut commands, render_device, Vec3::ZERO, view_radius.radius, &mut octant_map, &mut star_count);
+    catalog.particle_loader.update_chunks(&mut commands, render_device, Vec3::ZERO, game_settings.view_radius, &mut octant_map, &mut star_count);
 
     let lod_buffered_octant_loader = BufferedOctantLoader::new(
         catalog.particle_loader.buffered_octant_loader.octree.clone()
@@ -243,7 +251,7 @@ fn setup(
     // camera
     let controller = FpsCameraController {
         smoothing_weight: 0.6,
-        translate_sensitivity: 0.1,
+        translate_sensitivity: game_settings.camera_speed,
         mouse_rotate_sensitivity: Vec2::splat(0.001),
         ..Default::default()
     };
