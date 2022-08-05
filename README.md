@@ -6,7 +6,7 @@ Can handle the visualization of up to millions of stars.
 
 Examples:
 ![Image](./figures/DeepinScreenshot_stellar_coordinates_test_20220805113909.png)
-![Image](./figures/DeepinScreenshot_stellar_coordinates_test_20220805114003.png.png)
+![Image](./figures/DeepinScreenshot_stellar_coordinates_test_20220805114003.png)
 
 ## Getting data
 
