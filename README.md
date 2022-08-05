@@ -4,6 +4,10 @@ A 3D visualization of stars from [Gaia EDR 3](https://gea.esac.esa.int/archive/)
 
 Can handle the visualization of up to millions of stars.
 
+Examples:
+![Image](./figures/DeepinScreenshot_stellar_coordinates_test_20220805113909.png)
+![Image](./figures/DeepinScreenshot_stellar_coordinates_test_20220805114003.png.png)
+
 ## Getting data
 
 Go to <https://gaia.ari.uni-heidelberg.de/gaiasky/files/repository/catalog/dr3/> and download a `*.tar.gz` file and then extract the file afterwards.

@@ -308,7 +308,7 @@ impl ParticleLoader {
 
         let mut join_handles = Vec::new();
         println!("Available parallelism: {}", std::thread::available_parallelism().unwrap().get());
-        for index in 0..std::thread::available_parallelism().unwrap().get() - 1 {
+        for index in 0..std::thread::available_parallelism().unwrap().get() + 5 {
             let join_handle = Self::spawn_thread(
                 format!("Loader thread {}", index), 
                 particles_dir_path.clone(), 
