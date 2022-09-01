@@ -12,6 +12,12 @@ Examples:
 
 Go to <https://gaia.ari.uni-heidelberg.de/gaiasky/files/repository/catalog/dr3/> and download a `*.tar.gz` file and then extract the file afterwards.
 
+For exmaple:
+```bash
+wget https://gaia.ari.uni-heidelberg.de/gaiasky/files/repository/catalog/dr3/001-small/v01_20220623/catalog-gaia-dr3-small.tar.gz
+tar -xf catalog-gaia-dr3-small.tar.gz --one-top-level 
+```
+
 ## Running the code
 
 This project is build using `rust` and to run it you will need a working [Cargo](https://doc.rust-lang.org/cargo/)
@@ -21,23 +27,13 @@ for installation instructions.
 If you have all the requirements you can run this project with
 
 ```bash
-cargo run --release PATH_TO_CATALOG
+cargo run --release PATH_TO_CATALOG_DIRECTORY
 ```
-
 
 ### Fast compilation
 
 See [Bevy setup](https://bevyengine.org/learn/book/getting-started/setup/) for
 more information.
-
-For fast compilation, the `lld` linker is required on linux systems and the `zld`
-linker on maxOS. `zld` can be installed with bew:
-
-```bash
-brew install michaeleisel/zld/zld
-```
-
-If you don't want fast compile times, you can comment your platform in `./.cargo/config.toml`.
 
 ## Controls
 
