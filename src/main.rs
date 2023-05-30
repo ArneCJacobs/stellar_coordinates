@@ -5,22 +5,22 @@ use bevy::diagnostic::LogDiagnosticsPlugin;
 use bevy::{
     diagnostic::FrameTimeDiagnosticsPlugin,
     prelude::*,
-    render::{primitives::{Aabb, Sphere}, renderer::RenderDevice}, window::PresentMode,
+    render::{primitives::{Aabb, Sphere}, renderer::RenderDevice},
 };
 
 #[allow(unused_imports)]
-use bevy_inspector_egui::WorldInspectorPlugin;
-use bevy_prototype_debug_lines::*;
+// use bevy_inspector_egui::WorldInspectorPlugin;
+// use bevy_prototype_debug_lines::*;
 use chunk::{BufferedOctantLoader, util::{DATA_SCALE, PARSEC, LIGHT_YEAR, ASTRONOMICAL_UNIT}};
 use itertools::Itertools;
 use smooth_bevy_cameras::{
     controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin},
-    LookTransformPlugin,
+    LookTransformPlugin
 };
 use vec_map::VecMap;
 
 
-use bevy_egui::{egui, EguiContext, EguiPlugin};
+use bevy_egui::{egui, EguiContexts, EguiPlugin};
 
 use crate::chunk::Catalog;
 
@@ -31,17 +31,17 @@ mod util;
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::rgb(0.1, 0.1, 0.1)))
-        .insert_resource(WindowDescriptor {
-            present_mode: PresentMode::Mailbox,
-            ..Default::default()
-        })
+        // .insert_resource(WindowDescriptor {
+        //     present_mode: PresentMode::Mailbox,
+        //     ..Default::default()
+        // })
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
         // .add_plugin(WorldInspectorPlugin::new()) // in game inspector
         // .add_plugin(CustomMaterialPlugin) // for GPU instancing
         .add_plugin(LookTransformPlugin)
         .add_plugin(FpsCameraPlugin::default())
-        .add_system(cursor::cursor_grab_system)
+        // .add_system(cursor::cursor_grab_system)
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(LogDiagnosticsPlugin::filtered(vec![
             FrameTimeDiagnosticsPlugin::FPS,
@@ -82,7 +82,7 @@ fn pretty_int(i: u64) -> String {
 
 
 fn egui_system(
-    mut egui_context: ResMut<EguiContext>,
+    mut egui_contexts: EguiContexts,
     player_query: Query<&Transform, With<Player>>,
     mut game_settings: ResMut<GameSettings>,
     star_count: Res<StarCount>,
@@ -94,7 +94,7 @@ fn egui_system(
     let declination = (pos.y / radius).asin().to_degrees();
     let mut right_ascension = (pos.x / radius).atan2(pos.z / radius);
     right_ascension = (right_ascension + 2.0 * PI) % (2.0 * PI);
-    egui::Window::new("").show(egui_context.ctx_mut(), |ui| {
+    egui::Window::new("").show(egui_contexts.ctx_mut(), |ui| {
         ui.heading("Options");
         ui.add(egui::Slider::new(&mut game_settings.view_radius, 1.0..=1000.0).text("View raduis"));
         ui.add(egui::Slider::new(&mut controller.translate_sensitivity, 0.01..=100.0).text("Speed"));
@@ -115,15 +115,15 @@ fn egui_system(
     });
 }
 
-#[allow(dead_code)]
-fn draw_bounding_box_system(
-    mut lines: ResMut<DebugLines>,
-    query: Query<&bevy::render::primitives::Aabb>,
-) {
-    for aabb in query.iter() {
-        util::draw_bounding_box(&mut lines, aabb);
-    }
-}
+// #[allow(dead_code)]
+// fn draw_bounding_box_system(
+//     mut lines: ResMut<DebugLines>,
+//     query: Query<&Aabb>,
+// ) {
+//     for aabb in query.iter() {
+//         util::draw_bounding_box(&mut lines, aabb);
+//     }
+// }
 
 
 #[derive(Component)]
@@ -150,6 +150,7 @@ fn catalog_system(
      
 }
 
+#[derive(Resource)]
 struct LODdata{
     buffered_octant_loader: BufferedOctantLoader,
     lod_radius: f32,
@@ -158,6 +159,7 @@ struct LODdata{
 }
 
 // maps an octant index to it's corresponding entity
+#[derive(Resource)]
 pub struct OctantMap(VecMap<Entity>);
 
 fn lod_system(
@@ -189,12 +191,13 @@ fn lod_system(
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Resource)]
 struct GameSettings {
     view_radius: f32,
     camera_speed: f32,
 }
 
+#[derive(Resource)]
 struct StarCount(u64);
 
 fn setup(
@@ -204,15 +207,15 @@ fn setup(
 ) {
     let mut octant_map = OctantMap(VecMap::new());
     let radius = 0.1f32;
-    let ico_sphere = meshes.add(Mesh::from(shape::Icosphere {
-        radius,
-        subdivisions: 0,
-    }));
+    // let ico_sphere = meshes.add(Mesh::from(shape::Icosphere {
+    //     radius,
+    //     subdivisions: 0,
+    // }));
 
-    let ico_sphere_close = meshes.add(Mesh::from(shape::Icosphere {
-        radius,
-        subdivisions: 0,
-    }));
+    // let ico_sphere_close = meshes.add(Mesh::from(shape::Icosphere {
+    //     radius,
+    //     subdivisions: 0,
+    // }));
 
     let args = std::env::args().collect_vec();
     let catalog_name = args.get(1).expect("Catalog name cannot be empty, please provide it as the first argument");
@@ -221,26 +224,26 @@ fn setup(
         camera_speed: 0.1 
     };
     commands.insert_resource(game_settings);
-    let mut catalog = Catalog::new(
-        catalog_name.to_string(),
-        ico_sphere.clone(),
-    );
+    // let mut catalog = Catalog::new(
+    //     catalog_name.to_string(),
+    //     ico_sphere.clone(),
+    // );
     let mut star_count = 0;
-    catalog.particle_loader.update_chunks(&mut commands, render_device, Vec3::ZERO, game_settings.view_radius, &mut octant_map, &mut star_count);
+    // catalog.particle_loader.update_chunks(&mut commands, render_device, Vec3::ZERO, game_settings.view_radius, &mut octant_map, &mut star_count);
 
-    let lod_buffered_octant_loader = BufferedOctantLoader::new(
-        catalog.particle_loader.buffered_octant_loader.octree.clone()
-    );
+    // let lod_buffered_octant_loader = BufferedOctantLoader::new(
+    //     catalog.particle_loader.buffered_octant_loader.octree.clone()
+    // );
 
-    let lod_data: LODdata = LODdata { 
-        buffered_octant_loader: lod_buffered_octant_loader, 
-        lod_radius: 1.0, 
-        mesh_close: ico_sphere_close, 
-        mesh_far: ico_sphere.clone() 
-    };
+    // let lod_data: LODdata = LODdata { 
+    //     buffered_octant_loader: lod_buffered_octant_loader, 
+    //     lod_radius: 1.0, 
+    //     mesh_close: ico_sphere_close, 
+    //     mesh_far: ico_sphere.clone() 
+    // };
 
-    commands.insert_resource(catalog);
-    commands.insert_resource(lod_data);
+    // commands.insert_resource(catalog);
+    // commands.insert_resource(lod_data);
     commands.insert_resource(octant_map);
     commands.insert_resource(StarCount(star_count));
 
@@ -254,12 +257,12 @@ fn setup(
         ..Default::default()
     };
     commands
-        .spawn_bundle(PerspectiveCameraBundle::default())
-        .insert(Player()) // mark the camera as the main player
-        .insert_bundle(FpsCameraBundle::new(
+        .spawn(Camera3dBundle::default())
+        .insert(FpsCameraBundle::new(
             controller,
-            PerspectiveCameraBundle::default(),
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(0.000, 0.001, 1.),
+            Vec3::Z // TODO: double check this
         ));
+        
 }

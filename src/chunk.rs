@@ -115,9 +115,9 @@ impl Chunk {
             octant_id: OctantId(octant_id),
             aabb,
             // instance_buffer,
-            transform_bundle: TransformBundle::identity(),
+            transform_bundle: TransformBundle::IDENTITY,
             mesh,
-            visibility: Visibility { is_visible: true },
+            visibility: Visibility::Visible ,
             computed_visibility: ComputedVisibility::default(),
         }
     }
@@ -165,6 +165,7 @@ impl BufferedOctantLoader {
     }
 }
 
+#[derive(Resource)]
 pub struct Catalog {
     pub particle_loader: ParticleLoader,
 }
