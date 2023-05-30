@@ -51,7 +51,7 @@ pub struct Octant {
 impl Octant {
     pub fn iter_from_reader(mut reader: &mut impl Read) -> impl Iterator<Item=Self> + '_ {
         let particle_file = MetadataFile::from_reader(&mut reader).unwrap(); 
-        return (0..particle_file.size)
+        (0..particle_file.size)
             .filter_map(move |_| Self::from_reader(&mut reader).ok())
     }
 
@@ -66,6 +66,9 @@ impl Octant {
         let dz = (reader.read_f32::<BigEndian>()?) / 2.0 * (GITPS as f32);
 
         let mut children = [0; OCTANT_CHILDREN_COUNT];
+        // for child in &mut children {
+        //     *child = reader.read_i64::<BigEndian>()?;
+        // }
         for i in 0..OCTANT_CHILDREN_COUNT {
             children[i] = reader.read_i64::<BigEndian>()?;
         }
@@ -76,7 +79,7 @@ impl Octant {
         let child_count = reader.read_i32::<BigEndian>()?;
 
 
-        return Ok(Octant {
+        Ok(Octant {
             octant_id: octant_id.try_into().unwrap(),
             aabb: Aabb::from_min_max(
                 [x - dx, y - dy, z - dz].into(),
@@ -87,7 +90,6 @@ impl Octant {
             cumulative_star_count,
             star_count,
             child_count
-        });
-
+        })
     }
 }

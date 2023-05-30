@@ -19,11 +19,11 @@ use smooth_bevy_cameras::{
 };
 use vec_map::VecMap;
 
+
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 
 use crate::chunk::Catalog;
 use crate::gpu_instancing::CustomMaterialPlugin;
-
 
 mod chunk;
 mod cursor;
@@ -217,7 +217,7 @@ fn setup(
     }));
 
     let args = std::env::args().collect_vec();
-    let catalog_name = args.get(1).expect("Catalog name cannot be empty");
+    let catalog_name = args.get(1).expect("Catalog name cannot be empty, please provide it as the first argument");
     let game_settings = GameSettings{ 
         view_radius: 50.0, 
         camera_speed: 0.1 

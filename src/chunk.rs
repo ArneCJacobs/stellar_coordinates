@@ -12,7 +12,6 @@ use bevy::render::render_resource::{BufferInitDescriptor, BufferUsages};
 use bevy::render::renderer::RenderDevice;
 use itertools::Itertools;
 use serde::Deserialize;
-use serde_json;
 use bit_set::BitSet;
 use vec_map::VecMap;
 use crossbeam_channel::{unbounded, Receiver, Sender};
@@ -68,7 +67,7 @@ impl OcTree {
         let metadata_file = File::open(metadata_path).expect("could not open metadata file");
         let mut reader = BufReader::new(metadata_file);
         let octants: Vec<Octant> = Octant::iter_from_reader(&mut reader).collect();
-        return Self::new(octants);
+        Self::new(octants)
     }
 
     fn get_root(&self) -> &Octant {
@@ -90,7 +89,7 @@ impl OcTree {
             }
         }
 
-        return intersected;
+        intersected
     }
 
 }
@@ -162,7 +161,7 @@ impl BufferedOctantLoader {
 
         std::mem::swap(&mut self.new_octants, &mut self.loaded_octants);
 
-        return (new_octants, unloaded_octants);
+        (new_octants, unloaded_octants)
         
     }
 }
@@ -185,27 +184,24 @@ impl Catalog {
         // let mut catalog_description = catalog_dir.files(name);
         // catalog_description.set_extension("json");
         let catalog_description = std::fs::read_dir(catalog_dir.clone())
-            .expect(&format!("Could not find/open catalog directory: {:?}", catalog_dir.clone()).as_str())
-            .into_iter()
+            .unwrap_or_else(|_| panic!("Could not find/open catalog directory: {:?}", catalog_dir))
             .filter_map(|path| path.ok())
             .map(|path| path.path())
-            .filter(|path_buf| match path_buf.extension() {
+            .find(|path_buf| match path_buf.extension() {
                 None => false,
                 Some(extention) => extention.to_str().unwrap() == "json" 
             })
-            .next()
             .expect("Could not find description file");
         println!("{:?}", catalog_description);
             
 
-        let catalog_description_file = File::open(catalog_description.clone()).expect(&format!("Could not find/open catalog, {}", catalog_description.to_str().unwrap()).to_string());
+        let catalog_description_file = File::open(catalog_description.clone())
+            .unwrap_or_else(|_| { panic!("{}", format!("Could not find/open catalog, {}", catalog_description.to_str().unwrap())) });
         let catalog_data: CatalogData = serde_json::from_reader(catalog_description_file).unwrap();
 
         let metadata_path = catalog_data.files
             .iter()
-            .filter(|path| path.file_name().is_some())
-            .filter(|path| path.file_name().unwrap() == "metadata.bin")
-            .next()
+            .filter(|path| path.file_name().is_some()).find(|path| path.file_name().unwrap() == "metadata.bin")
             .expect("No metadata file found");
 
         let metadata_path = catalog_dir.join(metadata_path);
@@ -213,8 +209,7 @@ impl Catalog {
         let particles_dir_path = catalog_data.files
             .iter()
             .filter(|path| path.file_name().is_some())
-            .filter(|path| path.file_name().unwrap() == "particles")
-            .next()
+            .find(|path| path.file_name().unwrap() == "particles")
             .expect("No particles directory found");
 
         let particles_dir_path = catalog_dir.join(particles_dir_path);
