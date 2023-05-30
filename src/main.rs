@@ -23,11 +23,9 @@ use vec_map::VecMap;
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 
 use crate::chunk::Catalog;
-use crate::gpu_instancing::CustomMaterialPlugin;
 
 mod chunk;
 mod cursor;
-mod gpu_instancing;
 mod util;
 
 fn main() {
@@ -40,14 +38,14 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
         // .add_plugin(WorldInspectorPlugin::new()) // in game inspector
-        .add_plugin(CustomMaterialPlugin) // for GPU instancing
+        // .add_plugin(CustomMaterialPlugin) // for GPU instancing
         .add_plugin(LookTransformPlugin)
         .add_plugin(FpsCameraPlugin::default())
         .add_system(cursor::cursor_grab_system)
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
-        // .add_plugin(LogDiagnosticsPlugin::filtered(vec![
-        //     FrameTimeDiagnosticsPlugin::FPS,
-        // ]))
+        .add_plugin(LogDiagnosticsPlugin::filtered(vec![
+            FrameTimeDiagnosticsPlugin::FPS,
+        ]))
         // .add_plugin(DebugLinesPlugin::default())
         // .add_system(draw_bounding_box_system)
         .add_system(catalog_system)

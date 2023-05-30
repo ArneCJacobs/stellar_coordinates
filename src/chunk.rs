@@ -25,7 +25,6 @@ use crate::OctantMap;
 use crate::chunk::octant::Octant;
 use crate::chunk::octant::OCTANT_CHILDREN_COUNT;
 use crate::chunk::particle::Particle;
-use crate::gpu_instancing::{InstanceBuffer, InstanceData};
 
 #[derive(Clone)]
 pub struct OcTree {
@@ -235,7 +234,7 @@ struct CatalogData {
 pub struct OctantData {
     pub octant_id: usize,
     pub octant_index: usize,
-    pub instance_data_opt: Option<Vec<InstanceData>>,
+    // pub instance_data_opt: Option<Vec<InstanceData>>,
 }
 
 pub struct ParticleLoader {
@@ -263,25 +262,25 @@ impl ParticleLoader {
                     eprintln!("An error occured while opening particle file: {:?}, error: {}", particle_file_path.to_str(), error);
                     break;
                 }
-                let instance_data: Vec<InstanceData> = Particle::iter_from_reader(&mut particle_file.unwrap())
-                    .map(|particle: Particle| {
-                        let size = (particle.size.log2() / 14.0 - 1.0) * 1.8 + 0.7;
-                        // println!("size: {}", size);
-                        let [mut r,mut g,mut b,a] = particle.color;
-                        if r < 5 && g < 5 && b < 5 {
-                            [r, g, b] = [255, 255, 255];
-                        }
-                        InstanceData {
-                            position: Vec3::new(
-                                particle.x as f32,
-                                particle.y as f32,
-                                particle.z as f32,
-                            ),
-                            scale: size,
-                            color:  Color::rgba_u8(r,g,b,a).as_rgba_f32(),
-                        }
-                    }).collect();
-                octant_data.instance_data_opt = Some(instance_data);
+                // let instance_data: Vec<InstanceData> = Particle::iter_from_reader(&mut particle_file.unwrap())
+                //     .map(|particle: Particle| {
+                //         let size = (particle.size.log2() / 14.0 - 1.0) * 1.8 + 0.7;
+                //         // println!("size: {}", size);
+                //         let [mut r,mut g,mut b,a] = particle.color;
+                //         if r < 5 && g < 5 && b < 5 {
+                //             [r, g, b] = [255, 255, 255];
+                //         }
+                //         InstanceData {
+                //             position: Vec3::new(
+                //                 particle.x as f32,
+                //                 particle.y as f32,
+                //                 particle.z as f32,
+                //             ),
+                //             scale: size,
+                //             color:  Color::rgba_u8(r,g,b,a).as_rgba_f32(),
+                //         }
+                //     }).collect();
+                // octant_data.instance_data_opt = Some(instance_data);
                 if let Err(_) = sender_from.try_send(octant_data) {
                     eprintln!("Loader thread: Unexpected stop, main thread no longer receiving");
                     break;
@@ -360,20 +359,20 @@ impl ParticleLoader {
             let chunk_entity = self.loading_octants.remove(octant_data.octant_index)
                 .expect("While loading instance data, corresponding chunk entity was not found");
             // println!(", still loading octants: {:?}", self.loading_octants);
-            if let Some(instance_data) = octant_data.instance_data_opt {
-                let instance_buffer = InstanceBuffer {
-                    buffer: render_device.create_buffer_with_data(&BufferInitDescriptor{
-                        label: Some(format!("Octant {}", octant_data.octant_id).as_str()),
-                        contents: bytemuck::cast_slice(instance_data.as_slice()),
-                        usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-                    }),
-                    length: instance_data.len(),
-                };
-                commands.entity(chunk_entity)
-                    .insert(instance_buffer);
+            // if let Some(instance_data) = octant_data.instance_data_opt {
+            //     let instance_buffer = InstanceBuffer {
+            //         buffer: render_device.create_buffer_with_data(&BufferInitDescriptor{
+            //             label: Some(format!("Octant {}", octant_data.octant_id).as_str()),
+            //             contents: bytemuck::cast_slice(instance_data.as_slice()),
+            //             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            //         }),
+            //         length: instance_data.len(),
+            //     };
+            //     commands.entity(chunk_entity)
+            //         .insert(instance_buffer);
 
-                self.loaded_octants.insert(octant_data.octant_index, chunk_entity);
-            }
+            //     self.loaded_octants.insert(octant_data.octant_index, chunk_entity);
+            // }
         }
 
         // get which octant need to be loaded or unloaded
@@ -404,7 +403,7 @@ impl ParticleLoader {
             let octant_data = OctantData {
                 octant_id: octant.octant_id,
                 octant_index: index,
-                instance_data_opt: None,
+                // instance_data_opt: None,
             };
             // println!("Loading new octant with index: {}", index);
             self.loading_octants.insert(index, chunk_entity);
