@@ -12,7 +12,7 @@ pub fn cursor_grab_system(
     egui_context_opt: Option<EguiContexts>, // egui context added by bevy_inspector_egui
     egui_context2_opt: Option<bevy_egui::EguiContexts>, // egui context added by bevy_egui
 ) {
-    let window = windows.get_primary_mut().unwrap();
+    // let window = windows.get_primary_mut().unwrap();
 
     let mut camera_controller = camera_controller_query.get_single_mut().unwrap();
 
@@ -25,14 +25,14 @@ pub fn cursor_grab_system(
     };
 
     if btn.just_pressed(MouseButton::Left) && !hovering_over_egui {
-        window.set_cursor_lock_mode(true);
-        window.set_cursor_visibility(false);
+        // window.set_cursor_lock_mode(true);
+        // window.set_cursor_visibility(false);
         camera_controller.enabled = true;
     }
 
     if key.just_pressed(KeyCode::Escape) {
-        window.set_cursor_lock_mode(false);
-        window.set_cursor_visibility(true);
+        // window.set_cursor_lock_mode(false);
+        // window.set_cursor_visibility(true);
         camera_controller.enabled = false;
     }
 }

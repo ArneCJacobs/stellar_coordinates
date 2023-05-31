@@ -395,11 +395,11 @@ impl ParticleLoader {
                 self.initial_mesh.clone(),
                 // instance_buffer,
             );
-            let entity_command = commands.spawn_bundle(chunk);
+            // let entity_command = commands.spawn_bundle(chunk);
 
 
-            let chunk_entity = entity_command.id();
-            octant_map.0.insert(index, chunk_entity);
+            // let chunk_entity = entity_command.id();
+            // octant_map.0.insert(index, chunk_entity);
 
             let octant_data = OctantData {
                 octant_id: octant.octant_id,
@@ -407,7 +407,7 @@ impl ParticleLoader {
                 // instance_data_opt: None,
             };
             // println!("Loading new octant with index: {}", index);
-            self.loading_octants.insert(index, chunk_entity);
+            // self.loading_octants.insert(index, chunk_entity);
             if let Err(error) = self.main_thread_sender.try_send(octant_data) {
                 panic!("Could not send octant load request to worker thread, reason: {}", error);
             }

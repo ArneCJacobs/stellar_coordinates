@@ -191,7 +191,7 @@ fn lod_system(
     }
 }
 
-#[derive(Resource)]
+#[derive(Resource, Clone, Copy)]
 struct GameSettings {
     view_radius: f32,
     camera_speed: f32,
